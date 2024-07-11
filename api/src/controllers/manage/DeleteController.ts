@@ -1,0 +1,83 @@
+import {Delete, Header, Path, Route, Tags} from "tsoa";
+import {BotNotFoundError, EmbedNotFoundError, ManageService, UnauthorizedError} from "../../services/ManageService";
+import {BaseController} from "../../models/BaseController";
+import {API_KEY_HEADER_NAME, CriaError, CriaResponse} from "../../models/CriaResponse";
+
+interface DeleteResponse extends CriaResponse {
+    botName?: string;
+}
+
+@Tags("Manage")
+@Route("/manage/{botName}/delete")
+export class DeleteController extends BaseController {
+
+    constructor(
+        public service: ManageService = new ManageService()
+    ) {
+        super();
+    }
+
+    @Delete()
+    public async delete(
+        @Path() botName: string,
+        @Header(API_KEY_HEADER_NAME) apiKey: string
+    ): Promise<DeleteResponse> {
+
+        try {
+            await this.service.deleteBot(botName, apiKey)
+            this.setStatus(200);
+
+            return {
+                botName: botName,
+                message: "Bot has been cast into the void.",
+                status: 200,
+                code: "SUCCESS",
+                timestamp: Date.now().toString(),
+            };
+
+        } catch (e: any) {
+
+            switch (e.constructor) {
+                case CriaError:
+                    const payload: CriaResponse = e.payload;
+                    this.setStatus(payload.status);
+                    return payload;
+                case EmbedNotFoundError:
+                    this.setStatus(404);
+                    return {
+                        timestamp: Date.now().toString(),
+                        status: 404,
+                        message: "That bot embed does not exist.",
+                        botName: botName,
+                        code: "NOT_FOUND"
+                    };
+                case BotNotFoundError:
+                    this.setStatus(404)
+                    return {
+                        message: "That bot does not exist.",
+                        status: 404,
+                        code: "NOT_FOUND",
+                        timestamp: Date.now().toString()
+                    }
+                case UnauthorizedError:
+                    return {
+                        message: "Your key is not authorized for this action.",
+                        status: 404,
+                        code: "UNAUTHORIZED",
+                        timestamp: Date.now().toString()
+                    }
+                default:
+                    this.setStatus(500);
+                    return {
+                        timestamp: Date.now().toString(),
+                        status: 500,
+                        message: `Internal error occurred! Error Class: '${e.constructor.name}'`,
+                        code: "ERROR"
+                    };
+            }
+
+        }
+
+    }
+
+}

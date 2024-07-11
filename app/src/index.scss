@@ -1,0 +1,242 @@
+html, body {
+    margin: 0;
+    font-family: "IBM Plex Sans", "Roboto", -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,Noto Sans,sans-serif,"Apple Color Emoji","Segoe UI Emoji",Segoe UI Symbol,"Noto Color Emoji";
+
+    --grey-1: rgb(100, 116, 139);
+    --button-color: rgb(100, 100, 100);
+}
+
+/*
+@media(min-width: 1000px) {
+    body {
+        background-image: url("/assets/background-1658392f.png");
+        background-size: cover;
+
+    }
+}
+ */
+
+p {
+    margin: 0;
+}
+
+a {
+    color: #479dc9;
+    text-decoration: underline;
+    transition-duration: 100ms;
+}
+
+a:hover {
+    color: #428bb0;
+}
+
+@keyframes fadein {
+    0% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+@keyframes jump {
+    25% {
+        rotate: -15deg;
+    }
+    50% {
+        padding-bottom: 10px;
+    }
+    75% {
+        rotate: 7deg;
+    }
+    100% {
+        padding-bottom: 0;
+    }
+}
+
+.cria-jump {
+    animation: jump;
+}
+
+.cria-flip {
+    animation: flip;
+}
+
+.cria-portal {
+    animation: portal;
+}
+
+.icon-jitter {
+    animation: jitter;
+    image-rendering: pixelated;
+}
+
+
+@keyframes jitter {
+    15% {
+        rotate: 8deg;
+    }
+    25% {
+        rotate: 10deg;
+    }
+    50% {
+        transform: rotate(0);
+    }
+    75% {
+        transform: rotate(-10deg);
+    }
+}
+
+
+@keyframes flip {
+    50% {
+        padding-bottom: 25px;
+    }
+    75% {
+        rotate: 365deg;
+    }
+    100% {
+        rotate: 365deg;
+        padding-bottom: 0;
+    }
+}
+
+@keyframes portal {
+    15% {
+        scale: 0.95;
+    }
+    50% {
+        scale: 0;
+        rotate: 270deg;
+    }
+    65% {
+        scale: 0;
+        rotate: 200deg;
+    }
+    100% {
+        scale: 1;
+        rotate: 365deg;
+    }
+}
+
+.noselect {
+    -webkit-touch-callout: none; /* iOS Safari */
+    -webkit-user-select: none; /* Safari */
+    //noinspection CssUnknownProperty
+    -khtml-user-select: none; /* Konqueror HTML */
+    -moz-user-select: none; /* Old versions of Firefox */
+    -ms-user-select: none; /* Internet Explorer/Edge */
+    user-select: none; /* Non-prefixed version, currently
+    supported by Chrome, Edge, Opera and Firefox */
+}
+
+.send-woosh {
+    animation: woosh-in 0.5s;
+    cursor: not-allowed !important;
+}
+
+@keyframes woosh-in {
+    0% {scale: 1; rotate: 0deg}
+    50% {scale: 0.2}
+    100% {scale: inherit; rotate: 365deg}
+}
+
+.queryTextArea {
+    overflow: visible !important;
+    //     width: calc(100% - 20px);
+    margin: 10px 10px 0 10px;
+    border: none;
+    background: transparent;
+    resize: none;
+    flex-grow: 1;
+    font-family: inherit !important;
+    font-size: 14px;
+    overflow-y: scroll;
+    min-height: 35px;
+
+    &:focus {
+        outline: none;
+    }
+
+    &:disabled {
+        cursor: not-allowed;
+    }
+
+    .emoji {
+        height: 16px;
+        margin-bottom: -3px;
+    }
+}
+
+.queryTextArea[contenteditable='false'] {
+    cursor: not-allowed;
+}
+
+@keyframes spin {
+    0% {
+        rotate: 0deg;
+    }
+    100% {
+        rotate: -360deg;
+    }
+}
+
+
+.reset-chat-spin {
+    animation: spin 800ms infinite;
+    pointer-events: none;
+}
+
+@keyframes ghostly {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+    100% {
+        opacity: 1;
+    }
+
+}
+
+
+.speech-listening {
+    color: #e31837 !important;  // Sneaky york-red
+    animation: ghostly 2000ms infinite;
+}
+
+.auto-play-listening {
+    animation: ghostly 2000ms infinite;
+}
+
+#printDebug {
+    transform: scale(0);
+    height: 0;
+}
+
+@media print {
+    .chatMessage {
+        box-shadow: none !important;
+    }
+    .hideInPrint, #queryBox {
+        transform: scale(0) !important;
+        margin: 0 !important;
+        font-size: 0 !important;
+        padding: 0 !important;
+        height: 0 !important;
+        display: none !important;
+        opacity: 0 !important;
+    }
+    #printDebug {
+        height: unset !important;
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        align-content: center;
+        padding: 20px 0;
+        font-size: 15px;
+        transform: scale(1);
+    }
+}
