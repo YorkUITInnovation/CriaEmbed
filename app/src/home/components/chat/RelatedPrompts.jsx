@@ -21,6 +21,12 @@ const RelatedPromptButton = styled.button`
     box-shadow: 0 2px 3px 2px rgba(0, 0, 0, 0.025);
     text-align: left;
     cursor: pointer;
+
+    @media print {
+        color:  ${(props) => props.$bgColor};
+        background-color: white;
+    }
+
     
     &:not(:last-child) {
         margin-bottom: 8px;
@@ -70,9 +76,16 @@ export default class RelatedPrompts extends Component {
   }
 
   render() {
+
+    const promptButtons = this.getPromptButtons();
+
+    if (promptButtons.length === 0) {
+      return null;
+    }
+
     return (
       <RelatedPromptContainer>
-        {this.getPromptButtons()}
+        {promptButtons}
       </RelatedPromptContainer>
     )
   }

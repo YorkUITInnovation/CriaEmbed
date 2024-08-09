@@ -1,4 +1,4 @@
-import {CriabotChatResponseRelatedPrompt} from "../services/EmbedService";
+import {CriabotChatResponseRelatedPrompt, EmbedPublicConfig} from "../services/EmbedService";
 
 export type CriaResponseStatus = 200 | 300 | 401 | 500 | 301 | 302 | 409 | 403 | 405 | 429 | 404 | 422;
 export type CriaResponseCode =
@@ -24,6 +24,10 @@ export interface SendChatResponse extends CriaResponse {
   reply: string | null;
   replyId: string | null;
   relatedPrompts: CriabotChatResponseRelatedPrompt[] | null;
+}
+
+export interface EmbedConfigResponse extends CriaResponse {
+  config?: EmbedPublicConfig
 }
 
 export interface ChatAudioResponse extends CriaResponse {

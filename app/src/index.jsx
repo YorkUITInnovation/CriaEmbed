@@ -11,12 +11,11 @@ import {BrowserRouter, Route, Routes} from "react-router-dom";
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
-console.log('yikes', import.meta.env.VITE_APP_BASE)
 root.render(
   <React.StrictMode>
     <BrowserRouter>
       <Routes>
-        <Route path={import.meta.env.VITE_APP_BASE || "/"} element={<Home/>}/>
+        <Route path={"/"} element={<Home/>}/>
         <Route path={"*"} element={<div>404</div>} />
       </Routes>
     </BrowserRouter>

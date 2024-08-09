@@ -28,12 +28,9 @@
     const criaEmbed = document.getElementById("cria-embed");
     const criaEmbedURL = new URL(window.CRIA.webAppUrl);
 
-
-    // Convert object to URL params
-    for (const [prop, value] of Object.entries(window.CRIA)) {
-
+    for (const prop of ["botId", "chatId", "webAppUrl", "chatApiUrl"]) {
         if ((typeof value !== 'function')) {
-            criaEmbedURL.searchParams.set(prop, btoa(encodeURIComponent(JSON.stringify(value))));
+            criaEmbedURL.searchParams.set(prop, encodeURIComponent(window.CRIA[prop]));
         }
     }
 

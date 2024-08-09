@@ -6,39 +6,45 @@ import ChatHeader from "./components/chat/ChatHeader.jsx";
 import PrintDebug from "./components/PrintDebug.jsx";
 
 const Container = styled.div`
-  margin: auto;
-  height: 100svh; // Property does exist in the modern world :)
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-direction: column;
-  outline: 1px solid #e3e3e3;
-  box-shadow: 0 0 5px 2px rgba(227, 227, 227, 0.69);
-  background: white;
+    margin: auto;
+    height: 100svh; // Property does exist in the modern world :)
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-direction: column;
+    outline: 1px solid #e3e3e3;
+    box-shadow: 0 0 5px 2px rgba(227, 227, 227, 0.69);
+    background: white;
 
 
 `;
 
 export default class Home extends Component {
 
-    #mounted = false;
-    state = {chatExpired: false}
+  #mounted = false;
+  state = {chatExpired: false, configLoaded: false}
 
-    componentDidMount() {
-        if (this.#mounted) return;
-        this.#mounted = true;
-        document.addEventListener("chatExpired", () => this.setState({chatExpired: true}));
-    }
+  async componentDidMount() {
+    if (this.#mounted) return;
+    this.#mounted = true;
+    document.addEventListener("chatExpired", () => this.setState({chatExpired: true}));
 
-    render() {
+    // Fetch config
+    await window.Cria.fetchConfig()
+    this.setState({configLoaded: true});
+  }
 
-        return (
-            <Container>
-                <ChatHeader />
-                <ChatList />
-                {!this.state.chatExpired ? <QueryBox /> : null}
-                <PrintDebug />
-            </Container>
-        )
-    }
+  render() {
+
+    if (!this.state.configLoaded) return null;
+
+    return (
+      <Container>
+        <PrintDebug />
+        <ChatHeader/>
+        <ChatList/>
+        {!this.state.chatExpired ? <QueryBox/> : null}
+      </Container>
+    )
+  }
 }

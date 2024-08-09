@@ -4,6 +4,7 @@ import {BaseController} from "../../models/BaseController";
 
 import {IBotEmbed} from "../../database/mysql/controllers/BotEmbed";
 import {API_KEY_HEADER_NAME, CriaError, CriaResponse} from "../../models/CriaResponse";
+import {debugEnabled} from "../../config";
 
 interface RetrieveResponse extends CriaResponse {
     config?: IBotEmbed
@@ -67,9 +68,11 @@ export class RetrieveController extends BaseController {
                         timestamp: Date.now().toString()
                     }
                 default:
-                    this.setStatus(500);
-                    console.error(e)
+                    if (debugEnabled()) {
+                        console.error("Error occurred retrieving embed config!", e.stack);
+                    }
 
+                    this.setStatus(500);
                     return {
                         timestamp: Date.now().toString(),
                         status: 500,

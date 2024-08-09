@@ -24,7 +24,7 @@ COPY        package.json ./
 
 RUN         npm install
 
-FROM        with_packages as final
+FROM        with_packages AS final
 
 #           PROJECT SOURCE CODE
 

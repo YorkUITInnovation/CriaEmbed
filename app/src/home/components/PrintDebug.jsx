@@ -3,8 +3,9 @@ import {getTheme} from "./chat/ChatHeader.jsx";
 import {pickFontColorFromBg} from "./chat/Chat.jsx";
 
 const DebugContainer = styled.div`
-  background: ${(props) => props.$bgColor};
-  color: ${(props) => props.$fontColor};
+    display: none;
+    background: ${(props) => props.$bgColor};
+    color: ${(props) => props.$fontColor};
 `;
 
 const DataContainer = styled.span`

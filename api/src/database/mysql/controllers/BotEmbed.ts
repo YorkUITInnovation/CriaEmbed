@@ -22,7 +22,11 @@ export interface IBotBaseEmbedConfig {
   botEmbedPosition?: EmbedPosition | null
   botWatermark?: boolean | null,
   botLocale?: BotLocale | null,
-  initialPrompts?: CriabotChatResponseRelatedPrompt[] | null
+  initialPrompts?: CriabotChatResponseRelatedPrompt[] | null,
+  microsoftAppId?: string,
+  microsoftAppPassword?: string,
+  integrationsNoContextReply?: boolean,
+  integrationsFirstEmailOnly?: boolean
 }
 
 export interface IBotEmbedConfig extends IBotBaseEmbedConfig {
@@ -73,21 +77,33 @@ export class BotEmbed extends MySQLController {
     })
   }
 
+  retrieveByAppId(appId: string): Promise<IBotEmbed | undefined> {
+    return new Promise((resolve, reject) => {
+      this.pool.query<IBotEmbedPacket[]>(
+          "SELECT * FROM `EmbedBot` WHERE `microsoftAppId`=?",
+          [appId],
+          (err, res) => {
+            if (err) reject(err)
+            else resolve(this.postProcessRes(res?.[0]))
+          }
+      )
+    })
+  }
+
   insert(bot: IBotEmbedConfig): Promise<IBotEmbed> {
     return new Promise((resolve, reject) => {
 
       this.pool.query<ResultSetHeader>(
           `
               INSERT INTO \`EmbedBot\` (botName, botTitle, botSubTitle, botGreeting, botIconUrl, botEmbedTheme,
-                                        botWatermark, botLocale, initialPrompts)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                        botWatermark, botLocale, initialPrompts, microsoftAppId, microsoftAppPassword, integrationsNoContextReply, integrationsFirstEmailOnly)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `,
-          [bot.botName, bot.botTitle, bot.botSubTitle, bot.botGreeting, bot.botIconUrl, bot.botEmbedTheme, bot.botWatermark, bot.botLocale, JSON.stringify(bot.initialPrompts)],
+          [bot.botName, bot.botTitle, bot.botSubTitle, bot.botGreeting, bot.botIconUrl, bot.botEmbedTheme, bot.botWatermark, bot.botLocale, JSON.stringify(bot.initialPrompts), bot.microsoftAppId, bot.microsoftAppPassword, bot.integrationsNoContextReply, bot.integrationsFirstEmailOnly],
           async (err, res: ResultSetHeader) => {
             if (err || !res) {
               reject(err)
-            }
-            else {
+            } else {
               this.retrievedById(res.insertId)
                   .then(bot => resolve(bot!))
                   .catch(reject);
@@ -101,6 +117,8 @@ export class BotEmbed extends MySQLController {
 
   update(bot: IBotEmbedConfig): Promise<IBotEmbed | undefined> {
     return new Promise((resolve, reject) => {
+      console.log('Got', bot)
+
       this.pool.query<ResultSetHeader>(
           `
               UPDATE EmbedBot
@@ -111,10 +129,20 @@ export class BotEmbed extends MySQLController {
                   botEmbedTheme=?,
                   botWatermark=?,
                   botLocale=?,
-                  initialPrompts=?
+                  initialPrompts=?,
+                  botEmbedPosition=?,
+                  microsoftAppId=?,
+                  microsoftAppPassword=?,
+                  integrationsNoContextReply=?,
+                  integrationsFirstEmailOnly=?
               WHERE botName = ?
           `,
-          [bot.botTitle, bot.botSubTitle, bot.botGreeting, bot.botIconUrl, bot.botEmbedTheme, bot.botWatermark, bot.botLocale, JSON.stringify(bot.initialPrompts), bot.botName],
+          [
+            // Update
+            bot.botTitle, bot.botSubTitle, bot.botGreeting, bot.botIconUrl, bot.botEmbedTheme, bot.botWatermark, bot.botLocale, JSON.stringify(bot.initialPrompts), bot.botEmbedPosition, bot.microsoftAppId, bot.microsoftAppPassword, bot.integrationsNoContextReply, bot.integrationsFirstEmailOnly,
+
+            // Identifier
+            bot.botName],
           (err, _) => {
             if (err) reject(err)
             else

@@ -122,5 +122,5 @@ baseRouter.use((_: Request, res: Response) => {
     }
 );
 
-app.use(Config.BASE_PATH, baseRouter);
+app.use(baseRouter);
 

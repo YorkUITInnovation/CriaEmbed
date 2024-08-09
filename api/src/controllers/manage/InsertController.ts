@@ -4,9 +4,10 @@ import {BaseController} from "../../models/BaseController";
 
 import {IBotBaseEmbedConfig, IBotEmbed} from "../../database/mysql/controllers/BotEmbed";
 import {API_KEY_HEADER_NAME, CriaError, CriaResponse} from "../../models/CriaResponse";
+import {debugEnabled} from "../../config";
 
 interface InsertResponse extends CriaResponse {
-    config?: IBotEmbed
+  config?: IBotEmbed
 }
 
 
@@ -14,76 +15,79 @@ interface InsertResponse extends CriaResponse {
 @Route("manage/{botName}/insert")
 export class InsertController extends BaseController {
 
-    constructor(
-        public service: ManageService = new ManageService(),
-    ) {
-        super();
+  constructor(
+      public service: ManageService = new ManageService(),
+  ) {
+    super();
+  }
+
+  @Post()
+  public async insert(
+      @Path() botName: string,
+      @Body() config: IBotBaseEmbedConfig,
+      @Header(API_KEY_HEADER_NAME) apiKey: string
+  ): Promise<InsertResponse> {
+
+    try {
+      const botConfig: IBotEmbed = await this.service.insertBot(
+          {...config, botName: botName},
+          apiKey
+      )
+      this.setStatus(200);
+
+      return {
+        config: botConfig,
+        message: "Successfully inserted config",
+        status: 200,
+        code: "SUCCESS",
+        timestamp: Date.now().toString()
+      };
+
+    } catch (e: any) {
+
+      switch (e.constructor) {
+        case CriaError:
+          const payload: CriaResponse = e.payload;
+          this.setStatus(payload.status);
+          return payload;
+        case DuplicateEmbedError:
+          this.setStatus(409);
+          return {
+            message: "That bot config already exists!",
+            status: 409,
+            code: "DUPLICATE",
+            timestamp: Date.now().toString()
+          };
+        case BotNotFoundError:
+          this.setStatus(404)
+          return {
+            message: "That bot does not exist.",
+            status: 404,
+            code: "NOT_FOUND",
+            timestamp: Date.now().toString()
+          }
+        case UnauthorizedError:
+          return {
+            message: "Your key is not authorized for this action.",
+            status: 404,
+            code: "UNAUTHORIZED",
+            timestamp: Date.now().toString()
+          }
+        default:
+          if (debugEnabled()) {
+            console.error("Error occurred inserting embed config!", e.stack);
+          }
+          this.setStatus(500);
+          return {
+            timestamp: Date.now().toString(),
+            status: 500,
+            message: `Internal error occurred! Error Class: '${e.constructor.name}'`,
+            code: "ERROR"
+          };
+      }
+
     }
 
-    @Post()
-    public async insert(
-        @Path() botName: string,
-        @Body() config: IBotBaseEmbedConfig,
-        @Header(API_KEY_HEADER_NAME) apiKey: string
-    ): Promise<InsertResponse> {
-
-        try {
-            const botConfig: IBotEmbed = await this.service.insertBot(
-                {...config, botName: botName},
-                apiKey
-            )
-            this.setStatus(200);
-
-            return {
-                config: botConfig,
-                message: "Successfully inserted config",
-                status: 200,
-                code: "SUCCESS",
-                timestamp: Date.now().toString()
-            };
-
-        } catch (e: any) {
-
-            switch (e.constructor) {
-                case CriaError:
-                    const payload: CriaResponse = e.payload;
-                    this.setStatus(payload.status);
-                    return payload;
-                case DuplicateEmbedError:
-                    this.setStatus(409);
-                    return {
-                        message: "That bot config already exists!",
-                        status: 409,
-                        code: "DUPLICATE",
-                        timestamp: Date.now().toString()
-                    };
-                case BotNotFoundError:
-                    this.setStatus(404)
-                    return {
-                        message: "That bot does not exist.",
-                        status: 404,
-                        code: "NOT_FOUND",
-                        timestamp: Date.now().toString()
-                    }
-                case UnauthorizedError:
-                    return {
-                        message: "Your key is not authorized for this action.",
-                        status: 404,
-                        code: "UNAUTHORIZED",
-                        timestamp: Date.now().toString()
-                    }
-                default:
-                    this.setStatus(500);
-                    return {
-                        timestamp: Date.now().toString(),
-                        status: 500,
-                        message: `Internal error occurred! Error Class: '${e.constructor.name}'`,
-                        code: "ERROR"
-                    };
-            }
-
-        }
-
-    }
+  }
 
 }

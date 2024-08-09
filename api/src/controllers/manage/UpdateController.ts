@@ -4,6 +4,7 @@ import {BaseController} from "../../models/BaseController";
 
 import {IBotBaseEmbedConfig, IBotEmbed} from "../../database/mysql/controllers/BotEmbed";
 import {API_KEY_HEADER_NAME, CriaError, CriaResponse} from "../../models/CriaResponse";
+import {debugEnabled} from "../../config";
 
 interface UpdateResponse extends CriaResponse {
     config?: IBotEmbed
@@ -73,8 +74,10 @@ export class UpdateController extends BaseController {
                         timestamp: Date.now().toString()
                     }
                 default:
+                    if (debugEnabled()) {
+                        console.error("Error occurred updating embed config!", e.stack);
+                    }
                     this.setStatus(500);
-                    console.error(e);
                     return {
                         timestamp: Date.now().toString(),
                         status: 500,

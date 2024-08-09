@@ -1,12 +1,10 @@
-import {Example, Get, Middlewares, Path, Produces, Query, Route, Tags} from "tsoa";
+import {Example, Get, Middlewares, Path, Produces, Request, Route, Tags} from "tsoa";
 import {EmbedNotFoundError} from "../../services/ManageService";
 import {BaseController} from "../../models/BaseController";
 import {EmbedService} from "../../services/EmbedService";
 import {CriaError, CriaResponse} from "../../models/CriaResponse";
 import {RATE_LIMIT_EMBED_ALL_HANDLERS} from "../../models/LimitGenerator";
 import express from "express";
-import {Request} from "tsoa";
-import {EmbedPosition} from "../../database/mysql/controllers/BotEmbed";
 
 @Tags("Embed")
 @Route("/embed/{botName}/load")
@@ -34,14 +32,12 @@ export class EmbedController extends BaseController {
     @Middlewares(...RATE_LIMIT_EMBED_ALL_HANDLERS)
     public async load(
         @Request() request: express.Request,
-        @Path() botName: string,
-        @Query() embedPosition?: EmbedPosition
+        @Path() botName: string
     ): Promise<string | CriaResponse> {
 
         try {
             const embed: string = await this.service.retrieveEmbed(
-                botName,
-                embedPosition
+                botName
             );
 
             this.setStatus(200);

@@ -60,11 +60,12 @@ export class EmbedChatController extends BaseController {
                     };
                 default:
                     this.setStatus(500);
+                    console.error(e);
                     return {
                         timestamp: Date.now().toString(),
                         status: 500,
                         code: "ERROR",
-                        message: "Error sending a chat!",
+                        message: "Error sending a chat due to an error: " + e.message,
                         reply: null,
                         replyId: null,
                         relatedPrompts: null,

@@ -1,6 +1,7 @@
 import {Component} from "react";
 import {styled} from "styled-components";
 import {isDarkBasedOnBgColor, pickFontColorFromBg} from "./Chat.jsx";
+import PrintDebug from "../PrintDebug.jsx";
 
 const Container = styled.div`
   width: 100%;

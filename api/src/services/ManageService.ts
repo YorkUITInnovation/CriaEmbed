@@ -4,99 +4,122 @@ import {CriaError} from "../models/CriaResponse";
 import {AxiosResponse} from "axios";
 
 
-export class DuplicateEmbedError extends Error {}
-export class EmbedNotFoundError extends Error {}
-export class BotNotFoundError extends Error {}
-export class UnauthorizedError extends Error {}
+export class DuplicateEmbedError extends Error {
+}
+
+export class EmbedNotFoundError extends Error {
+}
+
+export class BotNotFoundError extends Error {
+}
+
+export class UnauthorizedError extends Error {
+}
 
 export type CriaBotExistsFunctionParams = {
-    bot_id: string,
-    bot_api_key: string
+  bot_id: string,
+  bot_api_key: string
 }
 
 // Q33BRKoVYQKNGZNNbDEm14i90ZLDyL3hJsWnTIRoqPE
 export class ManageService extends BaseService {
 
-    private db: BotEmbed;
+  private db: BotEmbed;
 
-    constructor(
-    ) {
-        super();
-        this.db = new BotEmbed(this.mySqlPool);
-    }
+  constructor() {
+    super();
+    this.db = new BotEmbed(this.mySqlPool);
+  }
 
-    private async botExistsAndIsAuthorized(botName: string, apiKey: string): Promise<true> {
-        const params: CriaBotExistsFunctionParams = {bot_id: botName, bot_api_key: apiKey};
+  private async botExistsAndIsAuthorized(botName: string, apiKey: string): Promise<true> {
+    const params: CriaBotExistsFunctionParams = {bot_id: botName, bot_api_key: apiKey};
 
-        const response: AxiosResponse = await this.get(
-            this.buildServiceURL(
-                "cria_bot_exists", params
-            )
+    const response: AxiosResponse = await this.get(
+        this.buildServiceURL(
+            "cria_bot_exists", params
         )
+    )
 
-        switch (response.data) {
-            case 404:
-                throw new BotNotFoundError();
-            case 401:
-                throw new UnauthorizedError();
-            case 200:
-                return true;
-            default:
-                throw new CriaError(
-                    `Received unexpected response from 'cria_bot_exists' function: '${response.data ? JSON.stringify(response.data) : 'N/A'}'.`
-                );
-        }
-
+    switch (response.data) {
+      case 404:
+        throw new BotNotFoundError();
+      case 401:
+        throw new UnauthorizedError();
+      case 200:
+        return true;
+      default:
+        throw new CriaError(
+            `Received unexpected response from 'cria_bot_exists' function: '${response.data ? JSON.stringify(response.data) : 'N/A'}'.`
+        );
     }
 
-    async retrieveBot(name: string, apiKey: string, skipAuth: boolean = false): Promise<IBotEmbed> {
+  }
 
-        if (!skipAuth) {
-            await this.botExistsAndIsAuthorized(name, apiKey);
-        }
+  async existsBot(botName: string): Promise<boolean> {
+    const result: IBotEmbed | undefined = await this.db.retrieveByName(botName);
+    return !!result;
+  }
 
-        const result: IBotEmbed | undefined = await this.db.retrieveByName(name);
+  async retrieveBot(name: string, apiKey: string, skipAuth: boolean = false): Promise<IBotEmbed> {
 
-        if (!result) {
-            throw new EmbedNotFoundError();
-        }
-
-        return result;
+    if (!skipAuth) {
+      await this.botExistsAndIsAuthorized(name, apiKey);
     }
 
-    async insertBot(config: IBotEmbedConfig, apiKey: string): Promise<IBotEmbed> {
-        await this.botExistsAndIsAuthorized(config.botName, apiKey);
+    const result: IBotEmbed | undefined = await this.db.retrieveByName(name);
 
-        if (await this.db.existsByName(config.botName)) {
-            throw new DuplicateEmbedError();
-        }
-
-        return await this.db.insert(config);
-
+    if (!result) {
+      throw new EmbedNotFoundError();
     }
 
-    async deleteBot(botName: string, apiKey: string): Promise<number> {
-        await this.botExistsAndIsAuthorized(botName, apiKey);
+    return result;
+  }
 
-        if (!await this.db.existsByName(botName)) {
-            throw new EmbedNotFoundError();
-        }
+  async retrieveBotByMicrosoftAppId(microsoftAppId: string): Promise<IBotEmbed> {
 
-        return await this.db.removeByName(botName);
 
+    const result: IBotEmbed | undefined = await this.db.retrieveByAppId(microsoftAppId);
+
+    if (!result) {
+      throw new EmbedNotFoundError();
     }
 
-    async updateBot(config: IBotEmbedConfig, apiKey: string): Promise<IBotEmbed> {
-        await this.botExistsAndIsAuthorized(config.botName, apiKey);
+    return result;
+  }
 
-        const result: IBotEmbed | undefined = await this.db.update(config);
+  async insertBot(config: IBotEmbedConfig, apiKey: string): Promise<IBotEmbed> {
+    await this.botExistsAndIsAuthorized(config.botName, apiKey);
 
-        if (!result) {
-            throw new EmbedNotFoundError();
-        }
-
-        return result;
-
+    if (await this.db.existsByName(config.botName)) {
+      throw new DuplicateEmbedError();
     }
+
+    return await this.db.insert(config);
+
+  }
+
+  async deleteBot(botName: string, apiKey: string): Promise<number> {
+    await this.botExistsAndIsAuthorized(botName, apiKey);
+
+    if (!await this.db.existsByName(botName)) {
+      throw new EmbedNotFoundError();
+    }
+
+    return await this.db.removeByName(botName);
+
+  }
+
+  async updateBot(config: IBotEmbedConfig, apiKey: string): Promise<IBotEmbed> {
+    await this.botExistsAndIsAuthorized(config.botName, apiKey);
+
+    const result: IBotEmbed | undefined = await this.db.update(config);
+
+    if (!result) {
+      throw new EmbedNotFoundError();
+    }
+
+    return result;
+
+  }
 
 }

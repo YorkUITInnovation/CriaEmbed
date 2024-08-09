@@ -1,6 +1,6 @@
-CREATE DATABASE IF NOT EXISTS criaembed CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+CREATE DATABASE IF NOT EXISTS %database% CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
 
-USE criaembed;
+USE %database%;
 
 CREATE TABLE IF NOT EXISTS `EmbedBot` (
     `id` INT AUTO_INCREMENT PRIMARY KEY,
@@ -15,6 +15,18 @@ CREATE TABLE IF NOT EXISTS `EmbedBot` (
     `botWatermark` TINYINT,
     `botLocale` VARCHAR(16),
     `initialPrompts` VARCHAR(4096),
-    `createdAt` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+
+    `integrationsNoContextReply` TINYINT,
+    `integrationsFirstEmailOnly` TINYINT,
+
+    # Microsoft App ID
+    `microsoftAppId` VARCHAR(128) UNIQUE,
+    `microsoftAppPassword` VARCHAR(128),
+
+    `createdAt` TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+
+    INDEX(`microsoftAppId`)
+
 );
+
 

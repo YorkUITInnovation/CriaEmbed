@@ -14,17 +14,20 @@ async function initializeDatabase(schema: string, config: PoolOptions): Promise<
   await initPool.query(schema);
 
   // Reconnect to created database
-  return (await createPool(config).promise()).pool;
+  return createPool(config).promise().pool;
 
 }
 
+
 export const MYSQL_POOL: Pool = await initializeDatabase(
-    fs.readFileSync(path.join(Config.ASSETS_FOLDER_PATH, '/schema.sql')).toString(),
+    fs.readFileSync(path.join(Config.ASSETS_FOLDER_PATH, '/schema.sql'))
+        .toString()
+        .replaceAll(/%database%/g, Config.MYSQL_DATABASE),
     {
       password: Config.MYSQL_PASSWORD,
       port: parseInt(Config.MYSQL_PORT),
       host: Config.MYSQL_HOST,
-      user: Config.MYSQL_USER,
+      user: Config.MYSQL_USERNAME,
       database: Config.MYSQL_DATABASE
     }
 );
