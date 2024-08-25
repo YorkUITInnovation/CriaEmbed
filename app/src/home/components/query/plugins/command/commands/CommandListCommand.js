@@ -12,6 +12,10 @@ export default class CommandListCommand extends Command {
         return "List all commands"
     }
 
+    isHidden() {
+        return true;
+    }
+
     async execute(text, ref) {
 
         const syntaxes = [];

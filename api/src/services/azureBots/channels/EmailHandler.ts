@@ -31,6 +31,7 @@ export class EmailHandler extends ChannelHandler {
       htmlBody: (EmailHandler.emailTemplate + "")
           .replace("%message%", response.prompt)
           .replace("%reply%", response.replyMessage)
+          .replace("%warning$", this.embed.botTrustWarning || "AI makes mistakes. Check important info.")
     };
 
     // Send the activity

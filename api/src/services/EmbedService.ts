@@ -23,6 +23,7 @@ type EmbedPopupConfig = {
   botIconUrl: string;
   defaultEnabled?: boolean | null;
   embedPosition?: EmbedPosition;
+  embedHoverTooltip?: string | null;
 }
 
 export type EmbedPublicConfig = {
@@ -37,7 +38,9 @@ export type EmbedPublicConfig = {
   embedPosition: EmbedPosition,
   watermarkEnabled?: boolean | null,
   botLocale: BotLocale,
-  initialPrompts?: CriabotChatResponseRelatedPrompt[] | null
+  initialPrompts?: CriabotChatResponseRelatedPrompt[] | null,
+  botTrustWarning?: string | null,
+  botContact?: string | null
 }
 
 type CriaGetGPTResponseFunctionParams = {
@@ -68,6 +71,7 @@ export type CriabotChatResponseRelatedPrompt = {
 export type CriabotChatReply = {
   related_prompts: CriabotChatResponseRelatedPrompt[]
   context: Record<string, any> | null
+  verified_response: boolean
 }
 
 export type CriabotChatResponse = {
@@ -163,7 +167,9 @@ export class EmbedService extends BaseService {
       embedPosition: botConfig.botEmbedPosition || EmbedPosition.BL,
       watermarkEnabled: botConfig.botWatermark,
       botLocale: botConfig.botLocale || "en-US",
-      initialPrompts: botConfig.initialPrompts
+      initialPrompts: botConfig.initialPrompts,
+      botTrustWarning: botConfig.botTrustWarning || null,
+      botContact: botConfig.botContact || null
     }
 
     if (config.embedTheme && !config.embedTheme.startsWith("#")) {
@@ -195,8 +201,9 @@ export class EmbedService extends BaseService {
       botIconUrl: botConfig.botIconUrl || Config.THIS_APP_URL + "/public/popup/cria.png",
       defaultEnabled: botConfig.botEmbedDefaultEnabled,
       embedPosition: botConfig.botEmbedPosition || EmbedPosition.BL,
-    }
+      embedHoverTooltip: botConfig.embedHoverTooltip || null
 
+    }
 
     return EMBED_BASE_SCRIPT.replace(
         "$objectReplace",
@@ -241,7 +248,7 @@ export class EmbedService extends BaseService {
 
     const apiResponse: CriaGetGPTResponseFunctionResponse = await this.sendChat(botName, chatId, prompt);
     const criaBotResponse = apiResponse.criabot_response;
-
+    criaBotResponse?.reply?.context
     // Confirm not null
     if (criaBotResponse == null) {
       throw new CriaError(
@@ -259,7 +266,8 @@ export class EmbedService extends BaseService {
         timestamp: Date.now().toString(),
         reply: null,
         replyId: null,
-        relatedPrompts: null
+        relatedPrompts: null,
+        verifiedResponse: null
       }
     }
 
@@ -274,6 +282,8 @@ export class EmbedService extends BaseService {
         apiResponse.message ? await this.messageCache.set(chatId, parse(apiResponse.message).textContent) : null
     );
 
+    const verifiedResponse: boolean | undefined = criaBotResponse?.reply?.verified_response;
+
     const responseData: SendChatResponse = {
       message: criaBotResponse.message || "Success!", // Message refers to the RESPONSE message
       status: 200,
@@ -281,9 +291,9 @@ export class EmbedService extends BaseService {
       timestamp: Date.now().toString(),
       reply: apiResponse.message, // Reply refers to the CONTENT reply
       replyId: replyId,
-      relatedPrompts: criaBotResponse?.reply?.related_prompts || null
+      relatedPrompts: criaBotResponse?.reply?.related_prompts || null,
+      verifiedResponse: verifiedResponse == null ? null : verifiedResponse
     }
-
 
     if (fullResponse) {
       return {

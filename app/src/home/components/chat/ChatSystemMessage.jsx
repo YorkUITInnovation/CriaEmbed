@@ -1,6 +1,6 @@
 import {styled} from "styled-components";
 
-const StartText = styled.span`
+export const StartText = styled.span`
   font-size: 10.5px;
   color: var(--grey-1);
   padding: 6px;

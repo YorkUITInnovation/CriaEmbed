@@ -214,6 +214,7 @@ export default class ChatList extends Component {
         userMessage={false}
         allowCopy={true}
         relatedPrompts={event.detail?.relatedPrompts}
+        verifiedResponse={event.detail.verifiedResponse}
       />
     );
 

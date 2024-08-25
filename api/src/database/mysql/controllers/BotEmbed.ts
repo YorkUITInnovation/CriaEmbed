@@ -22,11 +22,14 @@ export interface IBotBaseEmbedConfig {
   botEmbedPosition?: EmbedPosition | null
   botWatermark?: boolean | null,
   botLocale?: BotLocale | null,
+  botTrustWarning?: string | null,
   initialPrompts?: CriabotChatResponseRelatedPrompt[] | null,
-  microsoftAppId?: string,
-  microsoftAppPassword?: string,
-  integrationsNoContextReply?: boolean,
-  integrationsFirstEmailOnly?: boolean
+  microsoftAppId?: string | null,
+  microsoftAppPassword?: string | null,
+  integrationsNoContextReply?: boolean | null,
+  integrationsFirstEmailOnly?: boolean | null,
+  embedHoverTooltip?: string | null
+  botContact?: string | null
 }
 
 export interface IBotEmbedConfig extends IBotBaseEmbedConfig {
@@ -44,6 +47,25 @@ export interface IBotEmbedPacket extends IBotEmbed, RowDataPacket {
 
 export class BotEmbed extends MySQLController {
 
+  private postProcessRes(res: Record<string, any>): IBotEmbed | undefined {
+
+    if (res === undefined) {
+      return undefined;
+    }
+
+    if (res?.initialPrompts) {
+      res['initialPrompts'] = JSON.parse(res['initialPrompts']);
+    }
+
+    res['integrationsNoContextReply'] = res['integrationsNoContextReply'] !== null ? Boolean(res['integrationsNoContextReply']) : null;
+    res['integrationsFirstEmailOnly'] = res['integrationsFirstEmailOnly'] !== null ? Boolean(res['integrationsFirstEmailOnly']) : null;
+    res['botEmbedDefaultEnabled'] = res['botEmbedDefaultEnabled'] !== null ? Boolean(res['botEmbedDefaultEnabled']) : null;
+    res['botWatermark'] = res['botWatermark'] !== null ? Boolean(res['botWatermark']) : null;
+
+    return res as IBotEmbed;
+
+  }
+
   retrievedById(botId: number): Promise<IBotEmbed | undefined> {
     return new Promise((resolve, reject) => {
       this.pool.query<IBotEmbedPacket[]>(
@@ -55,13 +77,6 @@ export class BotEmbed extends MySQLController {
           }
       )
     })
-  }
-
-  private postProcessRes(res: Record<string, any>): IBotEmbed {
-    if (res?.initialPrompts) {
-      res['initialPrompts'] = JSON.parse(res['initialPrompts']);
-    }
-    return res as IBotEmbed;
   }
 
   retrieveByName(botName: string): Promise<IBotEmbed | undefined> {
@@ -96,10 +111,29 @@ export class BotEmbed extends MySQLController {
       this.pool.query<ResultSetHeader>(
           `
               INSERT INTO \`EmbedBot\` (botName, botTitle, botSubTitle, botGreeting, botIconUrl, botEmbedTheme,
-                                        botWatermark, botLocale, initialPrompts, microsoftAppId, microsoftAppPassword, integrationsNoContextReply, integrationsFirstEmailOnly)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        botWatermark, botLocale, initialPrompts, microsoftAppId, microsoftAppPassword,
+                                        integrationsNoContextReply, integrationsFirstEmailOnly, botEmbedDefaultEnabled,
+                                        botTrustWarning, embedHoverTooltip)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `,
-          [bot.botName, bot.botTitle, bot.botSubTitle, bot.botGreeting, bot.botIconUrl, bot.botEmbedTheme, bot.botWatermark, bot.botLocale, JSON.stringify(bot.initialPrompts), bot.microsoftAppId, bot.microsoftAppPassword, bot.integrationsNoContextReply, bot.integrationsFirstEmailOnly],
+          [
+            bot.botName,
+            bot.botTitle,
+            bot.botSubTitle,
+            bot.botGreeting,
+            bot.botIconUrl,
+            bot.botEmbedTheme,
+            Number(bot.botWatermark),
+            bot.botLocale,
+            JSON.stringify(bot.initialPrompts),
+            bot.microsoftAppId,
+            bot.microsoftAppPassword,
+            Number(bot.integrationsNoContextReply),
+            Number(bot.integrationsFirstEmailOnly),
+            Number(bot.botEmbedDefaultEnabled),
+            bot.botTrustWarning,
+            bot.embedHoverTooltip
+          ],
           async (err, res: ResultSetHeader) => {
             if (err || !res) {
               reject(err)
@@ -117,7 +151,6 @@ export class BotEmbed extends MySQLController {
 
   update(bot: IBotEmbedConfig): Promise<IBotEmbed | undefined> {
     return new Promise((resolve, reject) => {
-      console.log('Got', bot)
 
       this.pool.query<ResultSetHeader>(
           `
@@ -134,15 +167,34 @@ export class BotEmbed extends MySQLController {
                   microsoftAppId=?,
                   microsoftAppPassword=?,
                   integrationsNoContextReply=?,
-                  integrationsFirstEmailOnly=?
+                  integrationsFirstEmailOnly=?,
+                  botEmbedDefaultEnabled=?,
+                  botTrustWarning=?,
+                  embedHoverTooltip=?
               WHERE botName = ?
           `,
           [
             // Update
-            bot.botTitle, bot.botSubTitle, bot.botGreeting, bot.botIconUrl, bot.botEmbedTheme, bot.botWatermark, bot.botLocale, JSON.stringify(bot.initialPrompts), bot.botEmbedPosition, bot.microsoftAppId, bot.microsoftAppPassword, bot.integrationsNoContextReply, bot.integrationsFirstEmailOnly,
+            bot.botTitle,
+            bot.botSubTitle,
+            bot.botGreeting,
+            bot.botIconUrl,
+            bot.botEmbedTheme,
+            Number(bot.botWatermark),
+            bot.botLocale,
+            JSON.stringify(bot.initialPrompts),
+            bot.botEmbedPosition,
+            bot.microsoftAppId,
+            bot.microsoftAppPassword,
+            Number(bot.integrationsNoContextReply),
+            Number(bot.integrationsFirstEmailOnly),
+            Number(bot.botEmbedDefaultEnabled),
+            bot.botTrustWarning,
+            bot.embedHoverTooltip,
 
             // Identifier
-            bot.botName],
+            bot.botName
+          ],
           (err, _) => {
             if (err) reject(err)
             else

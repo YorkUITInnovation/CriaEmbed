@@ -31,6 +31,7 @@ export default class Home extends Component {
 
     // Fetch config
     await window.Cria.fetchConfig()
+    document.dispatchEvent(new CustomEvent("criaConfigLoaded"));
     this.setState({configLoaded: true});
   }
 

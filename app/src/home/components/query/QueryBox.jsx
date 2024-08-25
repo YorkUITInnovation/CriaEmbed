@@ -6,11 +6,15 @@ import Dictaphone from "./buttons/Dictaphone.jsx";
 import {ResetChat} from "./buttons/ResetChat.jsx";
 import {SendMessage} from "./buttons/SendMessage.jsx";
 import SpeechAutoPlay from "./buttons/SpeechAutoPlay.jsx";
+import {StartText} from "../chat/ChatSystemMessage.jsx";
 
 const OuterContainer = styled.div`
     width: 100%;
 `;
 
+const SubOuterContainer = styled.div`
+    margin: 0 15px 15px 15px;
+`;
 
 const Container = styled.div`
     position: relative;
@@ -19,7 +23,6 @@ const Container = styled.div`
     display: flex;
     align-items: stretch;
     height: fit-content;
-    margin: 0 15px 15px 15px;
     flex-direction: column;
 
     &:focus-within {
@@ -30,6 +33,12 @@ const Container = styled.div`
         }
     }
 
+`;
+
+const TrustWarning = styled.span`
+    width: 100%;
+    display: flex;
+    justify-content: center;
 `;
 
 const ButtonArea = styled.div`
@@ -185,25 +194,28 @@ export default class QueryBox extends Component {
 
     return (
       <OuterContainer id={"queryBox"}>
-        <Container $boxTheme={this.getQueryBoxTheme()}>
-          <QueryArea isLoading={this.state.isLoading}/>
-          <ButtonArea>
-            <div>
-              <ResetChat
-                id={"reset-chat-button"}
-              />
-            </div>
-            <div>
-              <SpeechAutoPlay/>
-              <Dictaphone/>
-              <SendMessage
-                id={this.#sendButtonId}
-                onClick={() => document.dispatchEvent(new CustomEvent("sendButtonClicked"))}
-                className={this.state.isLoading ? "send-woosh" : ""}
-              />
-            </div>
-          </ButtonArea>
-        </Container>
+        <SubOuterContainer>
+          <StartText/>
+          <Container $boxTheme={this.getQueryBoxTheme()}>
+            <QueryArea isLoading={this.state.isLoading}/>
+            <ButtonArea>
+              <div>
+                <ResetChat
+                  id={"reset-chat-button"}
+                />
+              </div>
+              <div>
+                <SpeechAutoPlay/>
+                <Dictaphone/>
+                <SendMessage
+                  id={this.#sendButtonId}
+                  onClick={() => document.dispatchEvent(new CustomEvent("sendButtonClicked"))}
+                  className={this.state.isLoading ? "send-woosh" : ""}
+                />
+              </div>
+            </ButtonArea>
+          </Container>
+        </SubOuterContainer>
       </OuterContainer>
     )
   }

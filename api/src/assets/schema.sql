@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS `EmbedBot` (
     `botTitle` VARCHAR(128),
     `botSubTitle` VARCHAR(256),
     `botGreeting` VARCHAR(4096),
+    `botContact` VARCHAR(512),
     `botIconUrl` VARCHAR(512),
     `botEmbedTheme` VARCHAR(16),
     `botEmbedPosition` VARCHAR(2),
@@ -15,7 +16,8 @@ CREATE TABLE IF NOT EXISTS `EmbedBot` (
     `botWatermark` TINYINT,
     `botLocale` VARCHAR(16),
     `initialPrompts` VARCHAR(4096),
-
+    `botTrustWarning` VARCHAR(256),
+    `embedHoverTooltip` VARCHAR(256),
     `integrationsNoContextReply` TINYINT,
     `integrationsFirstEmailOnly` TINYINT,
 

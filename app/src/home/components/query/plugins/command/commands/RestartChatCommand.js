@@ -13,6 +13,10 @@ export default class RestartChatCommand extends Command {
         return "Restart the chat"
     }
 
+    isHidden() {
+        return true;
+    }
+
     async execute(text, ref = undefined) {
         if (RestartChatCommand.restarting) {
             return `Already restarting!`;

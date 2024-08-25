@@ -26,7 +26,8 @@ export default class CriaConfig {
   watermarkEnabled;
   botLocale;
   initialPrompts;
-
+  botTrustWarning;
+  botContact;
 
   constructor(href) {
     this.#href = href;
@@ -34,7 +35,6 @@ export default class CriaConfig {
 
     // Build class
     this.#build();
-    console.log(this);
   }
 
   async fetchConfig() {

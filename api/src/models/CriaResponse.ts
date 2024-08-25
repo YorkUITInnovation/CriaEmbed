@@ -24,6 +24,7 @@ export interface SendChatResponse extends CriaResponse {
   reply: string | null;
   replyId: string | null;
   relatedPrompts: CriabotChatResponseRelatedPrompt[] | null;
+  verifiedResponse: boolean | null;
 }
 
 export interface EmbedConfigResponse extends CriaResponse {

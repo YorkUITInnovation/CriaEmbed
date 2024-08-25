@@ -5,6 +5,7 @@ import {getTheme} from "./ChatHeader.jsx";
 import SpeechButton from "./buttons/SpeechButton.jsx";
 import CopyButton from "./buttons/CopyButton.jsx";
 import RelatedPrompts from "./RelatedPrompts.jsx";
+import VerifiedResponseTooltip from "./buttons/VerifiedResponseTooltip.jsx";
 
 const BotPicture = styled.img`
     height: 30px;
@@ -95,10 +96,10 @@ const UserMessage = styled.span`
 `;
 
 
-const DateText = styled.span`
+const InteractionButtons = styled.span`
     font-size: 10.5px;
     color: var(--grey-1);
-    padding: 6px;
+    padding: 3px 6px 6px 6px;
     display: flex;
     align-items: center;
     align-content: center;
@@ -240,10 +241,10 @@ export default class Chat extends Component {
             <UserMessage id={this.messageElementId} className={"chatMessage"} $bgColor={window.Cria.embedTheme || "#1065c7"}>
               {this.getReplyContent()}</UserMessage>
           </MessageContainer>
-          <DateText style={{marginRight: "10px", justifyContent: "flex-end"}}>
+          <InteractionButtons style={{marginRight: "10px", justifyContent: "flex-end"}}>
             {this.props?.['allowCopy'] && <CopyButton chatElementId={this.messageElementId}/>}
             {this.props.time}
-          </DateText>
+          </InteractionButtons>
         </ChatElementContainer>
       )
     }
@@ -264,12 +265,12 @@ export default class Chat extends Component {
           </BotMessageContainer>
           <div style={{flexGrow: 1}}></div>
         </MessageContainer>
-        <DateText style={{marginLeft: "45px"}}>
-          {this.props?.['messageId'] && <SpeechButton messageId={this.props.messageId} autoPlay={this.props.autoPlay}
-                                                      isGreeting={this.props.isGreeting}/>}
+        <InteractionButtons style={{marginLeft: "45px"}}>
+          {this.props?.['messageId'] && <SpeechButton messageId={this.props.messageId} autoPlay={this.props.autoPlay} isGreeting={this.props.isGreeting}/>}
           {this.props?.['allowCopy'] && <CopyButton chatElementId={this.messageElementId}/>}
-          {this.props.time}
-        </DateText>
+          {this.props?.['verifiedResponse'] && <VerifiedResponseTooltip />}
+          <span style={{marginTop: "-1px"}}>{this.props.time}</span>
+        </InteractionButtons>
       </ChatElementContainer>
     );
 

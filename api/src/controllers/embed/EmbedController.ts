@@ -55,7 +55,7 @@ export class EmbedController extends BaseController {
 
             switch (e.constructor) {
                 case EmbedNotFoundError:
-                    this.setStatus(404);
+                    this.setStatus(404, e);
 
                     return {
                         timestamp: Date.now().toString(),
@@ -66,13 +66,10 @@ export class EmbedController extends BaseController {
 
                 case CriaError:
                     const payload: CriaResponse = e.payload;
-                    this.setStatus(payload.status);
+                    this.setStatus(payload.status, e);
                     return payload;
                 default:
-                    this.setStatus(500);
-
-                    console.log(e.stack)
-
+                    this.setStatus(500, e);
                     return {
                         timestamp: Date.now().toString(),
                         status: 500,

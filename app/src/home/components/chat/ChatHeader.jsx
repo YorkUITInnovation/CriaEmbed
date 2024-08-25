@@ -23,10 +23,11 @@ const TextContainer = styled.div`
 `;
 
 const Logo = styled.img`
-  pointer-events: none;
-  height: 36px;
-  margin-bottom: -3px;
-  filter: ${(props) => props.$isDarkBg ? 'invert(0.8)' : 'invert(0)'};
+    pointer-events: none;
+    width: 60px;
+    margin-bottom: -3px;
+    filter: ${(props) => props.$isDarkBg ? 'invert(0)' : 'invert(1)'};
+    -webkit-filter: ${(props) => props.$isDarkBg ? 'invert(0)' : 'invert(1)'};
 `;
 
 const LogoLink = styled.a`
@@ -139,7 +140,7 @@ export default class ChatHeader extends Component {
                 >
                     <Logo
                         $isDarkBg={isDarkBasedOnBgColor(bgTheme)}
-                        src={"/icons/cria.png"}
+                        src={"/icons/aura.png"}
                     />
                 </LogoLink>
             )

@@ -36,10 +36,10 @@ export class ChatExistsController extends BaseController {
         } catch (e: any) {
             switch (e.constructor) {
                 case CriaError:
-                    this.setStatus(e.payload.status);
+                    this.setStatus(e.payload.status, e);
                     return {exists: null, ...(e.payload as CriaResponse)};
                 default:
-                    this.setStatus(500);
+                    this.setStatus(500, e);
                     return {
                         timestamp: Date.now().toString(),
                         status: 500,

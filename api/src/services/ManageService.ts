@@ -38,7 +38,10 @@ export class ManageService extends BaseService {
         this.buildServiceURL(
             "cria_bot_exists", params
         )
-    )
+    );
+
+    console.log('response', response.data, typeof response.data)
+    response.data = parseInt(response.data);
 
     switch (response.data) {
       case 404:
@@ -49,7 +52,7 @@ export class ManageService extends BaseService {
         return true;
       default:
         throw new CriaError(
-            `Received unexpected response from 'cria_bot_exists' function: '${response.data ? JSON.stringify(response.data) : 'N/A'}'.`
+            `Received unexpected response from 'cria_bot_exists' function: '${JSON.stringify(response.data)}'.`
         );
     }
 
@@ -69,7 +72,7 @@ export class ManageService extends BaseService {
     const result: IBotEmbed | undefined = await this.db.retrieveByName(name);
 
     if (!result) {
-      throw new EmbedNotFoundError();
+      throw new EmbedNotFoundError("Bot not found.");
     }
 
     return result;
@@ -77,8 +80,13 @@ export class ManageService extends BaseService {
 
   async retrieveBotByMicrosoftAppId(microsoftAppId: string): Promise<IBotEmbed> {
 
-
-    const result: IBotEmbed | undefined = await this.db.retrieveByAppId(microsoftAppId);
+    console.log('microsoftAppId', microsoftAppId)
+    let result: IBotEmbed | undefined;
+    try {
+      result = await this.db.retrieveByAppId(microsoftAppId);
+    } catch (e) {
+      throw e
+    }
 
     if (!result) {
       throw new EmbedNotFoundError();

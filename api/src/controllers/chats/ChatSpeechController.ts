@@ -1,7 +1,7 @@
 import {Get, Path, Query, Route, Tags} from "tsoa";
 import {BaseController} from "../../models/BaseController";
 import {EmbedService} from "../../services/EmbedService";
-import {ChatAudioResponse, CriaError, CriaResponse} from "../../models/CriaResponse";
+import {ChatAudioResponse, CriaError} from "../../models/CriaResponse";
 import SpeechService, {ChatContentNotFoundError, SpeechLanguage} from "../../services/SpeechService";
 import {Readable} from "stream";
 
@@ -44,7 +44,7 @@ export class ChatSpeechController extends BaseController {
         } catch (e: any) {
             switch (e.constructor) {
                 case ChatContentNotFoundError:
-                    this.setStatus(500);
+                    this.setStatus(500, e);
                     return {
                         timestamp: Date.now().toString(),
                         status: 404,
@@ -52,12 +52,10 @@ export class ChatSpeechController extends BaseController {
                         message: "The chat exists but the cached chat content could not be found or is expired.",
                     };
                 case CriaError:
-                    const payload: CriaResponse = e.payload;
-                    this.setStatus(payload.status);
-                    return payload;
+                    this.setStatus(e.payload.status, e);
+                    return e.payload;
                 default:
-                    this.setStatus(500);
-                    console.log(e.stack)
+                    this.setStatus(500, e);
                     return {
                         timestamp: Date.now().toString(),
                         status: 500,

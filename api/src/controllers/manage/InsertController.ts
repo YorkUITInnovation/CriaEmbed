@@ -4,7 +4,6 @@ import {BaseController} from "../../models/BaseController";
 
 import {IBotBaseEmbedConfig, IBotEmbed} from "../../database/mysql/controllers/BotEmbed";
 import {API_KEY_HEADER_NAME, CriaError, CriaResponse} from "../../models/CriaResponse";
-import {debugEnabled} from "../../config";
 
 interface InsertResponse extends CriaResponse {
   config?: IBotEmbed
@@ -48,10 +47,10 @@ export class InsertController extends BaseController {
       switch (e.constructor) {
         case CriaError:
           const payload: CriaResponse = e.payload;
-          this.setStatus(payload.status);
+          this.setStatus(payload.status, e);
           return payload;
         case DuplicateEmbedError:
-          this.setStatus(409);
+          this.setStatus(409, e);
           return {
             message: "That bot config already exists!",
             status: 409,
@@ -59,7 +58,7 @@ export class InsertController extends BaseController {
             timestamp: Date.now().toString()
           };
         case BotNotFoundError:
-          this.setStatus(404)
+          this.setStatus(404, e)
           return {
             message: "That bot does not exist.",
             status: 404,
@@ -67,17 +66,15 @@ export class InsertController extends BaseController {
             timestamp: Date.now().toString()
           }
         case UnauthorizedError:
+          this.setStatus(403, e);
           return {
             message: "Your key is not authorized for this action.",
-            status: 404,
+            status: 403,
             code: "UNAUTHORIZED",
             timestamp: Date.now().toString()
           }
         default:
-          if (debugEnabled()) {
-            console.error("Error occurred inserting embed config!", e.stack);
-          }
-          this.setStatus(500);
+          this.setStatus(500, e);
           return {
             timestamp: Date.now().toString(),
             status: 500,
