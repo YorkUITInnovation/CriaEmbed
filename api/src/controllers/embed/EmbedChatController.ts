@@ -47,7 +47,8 @@ export class EmbedChatController extends BaseController {
                         message: "The requested bot does NOT have embeds enabled or does not exist.",
                         reply: null,
                         replyId: null,
-                        relatedPrompts: null
+                        relatedPrompts: null,
+                        verifiedResponse: null
                     };
                 case CriaError:
                     const payload: CriaResponse = e.payload;
@@ -56,6 +57,7 @@ export class EmbedChatController extends BaseController {
                         reply: null,
                         replyId: null,
                         relatedPrompts: null,
+                        verifiedResponse: null,
                         ...payload
                     };
                 default:
@@ -68,6 +70,7 @@ export class EmbedChatController extends BaseController {
                         reply: null,
                         replyId: null,
                         relatedPrompts: null,
+                        verifiedResponse: null
                     };
             }
 

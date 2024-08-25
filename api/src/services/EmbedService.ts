@@ -202,7 +202,6 @@ export class EmbedService extends BaseService {
       defaultEnabled: botConfig.botEmbedDefaultEnabled,
       embedPosition: botConfig.botEmbedPosition || EmbedPosition.BL,
       embedHoverTooltip: botConfig.embedHoverTooltip || null
-
     }
 
     return EMBED_BASE_SCRIPT.replace(
@@ -248,7 +247,6 @@ export class EmbedService extends BaseService {
 
     const apiResponse: CriaGetGPTResponseFunctionResponse = await this.sendChat(botName, chatId, prompt);
     const criaBotResponse = apiResponse.criabot_response;
-    criaBotResponse?.reply?.context
     // Confirm not null
     if (criaBotResponse == null) {
       throw new CriaError(

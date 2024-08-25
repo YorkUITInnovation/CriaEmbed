@@ -39,8 +39,9 @@
   const criaEmbedImage = document.getElementById("cria-bot-icon");
   criaEmbedImage.src = window.CRIA.botIconUrl;
 
-  if (window.CRIA.embedHoverTooltip) {
-    criaEmbedImage.title = criaEmbedImage.label = window.CRIA.embedHoverTooltip;
+  if (window.CRIA.embedHoverTooltip != null) {
+    criaEmbedImage.setAttribute("label",  window.CRIA.embedHoverTooltip);
+    criaEmbedImage.setAttribute("title",  window.CRIA.embedHoverTooltip);
   }
 
   // Default enabled status
