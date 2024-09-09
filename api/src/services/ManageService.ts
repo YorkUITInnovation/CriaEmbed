@@ -31,7 +31,7 @@ export class ManageService extends BaseService {
     this.db = new BotEmbed(this.mySqlPool);
   }
 
-  private async botExistsAndIsAuthorized(botName: string, apiKey: string): Promise<true> {
+  public async botExistsAndIsAuthorized(botName: string, apiKey: string): Promise<true> {
     const params: CriaBotExistsFunctionParams = {bot_id: botName, bot_api_key: apiKey};
 
     const response: AxiosResponse = await this.get(
@@ -40,7 +40,6 @@ export class ManageService extends BaseService {
         )
     );
 
-    console.log('response', response.data, typeof response.data)
     response.data = parseInt(response.data);
 
     switch (response.data) {

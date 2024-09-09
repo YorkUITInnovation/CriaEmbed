@@ -2,12 +2,13 @@ import {BaseService} from "./BaseService";
 import {BotLocale, EmbedPosition, IBotEmbed} from "../database/mysql/controllers/BotEmbed";
 import {ManageService} from "./ManageService";
 import {AxiosResponse} from "axios";
-import {Config} from "../config";
+import {Config, debugEnabled} from "../config";
 import {CriaError, CriaResponseCode, CriaResponseStatus, SendChatResponse} from "../models/CriaResponse";
 import * as fs from "fs";
 import path from "path";
 import MessageCache from "../database/redis/controllers/MessageCache";
 import {parse} from "node-html-parser";
+import TrackingCache from "../database/redis/controllers/TrackingCache";
 
 const EMBED_BASE_SCRIPT: string = fs.readFileSync(
     path.join(Config.ASSETS_FOLDER_PATH, "/public/loader.js")
@@ -93,7 +94,8 @@ export class EmbedService extends BaseService {
 
   constructor(
       public readonly manageService: ManageService = new ManageService(),
-      public readonly messageCache: MessageCache = new MessageCache()
+      public readonly messageCache: MessageCache = new MessageCache(),
+      public readonly trackingCache: TrackingCache = new TrackingCache()
   ) {
     super();
   }
@@ -104,7 +106,7 @@ export class EmbedService extends BaseService {
         this.buildServiceURL(
             "cria_get_chat_id", {}
         )
-    )
+    );
 
     const chatId: string = response.data;
 
@@ -155,6 +157,10 @@ export class EmbedService extends BaseService {
       await this.messageCache.set(chatId, botGreeting, "greeting");
     }
 
+    if (debugEnabled()) {
+      console.log("Returning embed config for bot: " + botName, botConfig);
+    }
+
     const config: EmbedPublicConfig = {
       botId: botConfig.botName,
       botName: botConfig.botTitle || botConfig.botName,
@@ -169,7 +175,7 @@ export class EmbedService extends BaseService {
       botLocale: botConfig.botLocale || "en-US",
       initialPrompts: botConfig.initialPrompts,
       botTrustWarning: botConfig.botTrustWarning || null,
-      botContact: botConfig.botContact || null
+      botContact: botConfig.botContact == null ? null : botConfig.botContact
     }
 
     if (config.embedTheme && !config.embedTheme.startsWith("#")) {
@@ -180,14 +186,39 @@ export class EmbedService extends BaseService {
 
   }
 
+  public async saveTrackingInfo(
+      botName: string,
+      chatId: string,
+      sessionData: Record<string, any>,
+      apiKey: string
+  ): Promise<string> {
+    await this.manageService.botExistsAndIsAuthorized(botName, apiKey);
+    return this.trackingCache.set(chatId, sessionData);
+  }
+
+  public async getTrackingInfo(
+      botName: string,
+      chatId: string,
+      apiKey: string
+  ): Promise<Record<string, any> | null> {
+    await this.manageService.botExistsAndIsAuthorized(botName, apiKey);
+    const trackingData: string | null = await this.trackingCache.get(chatId);
+
+    console.log('retrieving', trackingData);
+
+    if (!trackingData) {
+      return null;
+    }
+    return JSON.parse(trackingData);
+  }
+
   async retrieveEmbed(
       botName: string,
-  ): Promise<string> {
+  ): Promise<[string, string]> {
 
     const botConfig: IBotEmbed = await this.manageService.retrieveBot(botName, "", true);
-
-
     const chatId: string = await this.createChat();
+
     const popupConfig: EmbedPopupConfig = {
       // Chat needs
       chatId: chatId,
@@ -204,10 +235,12 @@ export class EmbedService extends BaseService {
       embedHoverTooltip: botConfig.embedHoverTooltip || null
     }
 
-    return EMBED_BASE_SCRIPT.replace(
+    const embedJs = EMBED_BASE_SCRIPT.replace(
         "$objectReplace",
         JSON.stringify(popupConfig)
     );
+
+    return [embedJs, chatId];
 
   }
 

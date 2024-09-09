@@ -1,6 +1,7 @@
 import {ResultSetHeader, RowDataPacket} from "mysql2"
 import {MySQLController} from "../../../models/MySQLController";
 import {CriabotChatResponseRelatedPrompt} from "../../../services/EmbedService";
+import {debugEnabled} from "../../../config";
 
 export enum EmbedPosition {
   BL = 1,
@@ -113,8 +114,8 @@ export class BotEmbed extends MySQLController {
               INSERT INTO \`EmbedBot\` (botName, botTitle, botSubTitle, botGreeting, botIconUrl, botEmbedTheme,
                                         botWatermark, botLocale, initialPrompts, microsoftAppId, microsoftAppPassword,
                                         integrationsNoContextReply, integrationsFirstEmailOnly, botEmbedDefaultEnabled,
-                                        botTrustWarning, embedHoverTooltip)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        botTrustWarning, embedHoverTooltip, botContact)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `,
           [
             bot.botName,
@@ -132,7 +133,8 @@ export class BotEmbed extends MySQLController {
             Number(bot.integrationsFirstEmailOnly),
             Number(bot.botEmbedDefaultEnabled),
             bot.botTrustWarning,
-            bot.embedHoverTooltip
+            bot.embedHoverTooltip,
+            bot.botContact
           ],
           async (err, res: ResultSetHeader) => {
             if (err || !res) {
@@ -152,6 +154,10 @@ export class BotEmbed extends MySQLController {
   update(bot: IBotEmbedConfig): Promise<IBotEmbed | undefined> {
     return new Promise((resolve, reject) => {
 
+      if (debugEnabled()) {
+        console.log("Updating bot: ", bot);
+      }
+
       this.pool.query<ResultSetHeader>(
           `
               UPDATE EmbedBot
@@ -170,7 +176,8 @@ export class BotEmbed extends MySQLController {
                   integrationsFirstEmailOnly=?,
                   botEmbedDefaultEnabled=?,
                   botTrustWarning=?,
-                  embedHoverTooltip=?
+                  embedHoverTooltip=?,
+                  botContact=?
               WHERE botName = ?
           `,
           [
@@ -191,6 +198,7 @@ export class BotEmbed extends MySQLController {
             Number(bot.botEmbedDefaultEnabled),
             bot.botTrustWarning,
             bot.embedHoverTooltip,
+            bot.botContact,
 
             // Identifier
             bot.botName
