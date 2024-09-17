@@ -140,6 +140,7 @@ export class EmbedService extends BaseService {
     if (response.data['criabot_response']) {
       response.data['criabot_response'] = JSON.parse(response.data['criabot_response']);
     }
+
     return response.data as CriaGetGPTResponseFunctionResponse;
 
   }
@@ -280,6 +281,7 @@ export class EmbedService extends BaseService {
 
     const apiResponse: CriaGetGPTResponseFunctionResponse = await this.sendChat(botName, chatId, prompt);
     const criaBotResponse = apiResponse.criabot_response;
+
     // Confirm not null
     if (criaBotResponse == null) {
       throw new CriaError(

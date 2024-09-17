@@ -1,27 +1,33 @@
-!function() {
+/*
+This is the Cria loader, built by IT Innovation at York University in 2024.
 
-    let t = window,
-        e = document,
-        load = function() {
+If you're stalking this script, hello!
+- Isaac
+*/
+!function () {
 
-            window.CRIA = $objectReplace;
+  let t = window,
+    e = document,
+    load = function () {
 
-            let t = e.createElement("script");
+      window.CRIA = $objectReplace;
 
-            t.type = "text/javascript";
-            t.async = true;
-            t.src = window.CRIA.chatApiUrl + "/public/popup/embed.js" + `?nocache=${Math.random()}`;
-            t.id = "cria-embed-loader";
+      let t = e.createElement("script");
 
-            e.getElementsByTagName("script")[0].parentNode.appendChild(t);
-        };
+      t.type = "text/javascript";
+      t.async = true;
+      t.src = window.CRIA.chatApiUrl + "/public/popup/embed.js" + `?nocache=${Math.random()}`;
+      t.id = "cria-embed-loader";
 
-    // Add the script
-    if (document.readyState === "complete") {
-        load();
-    } else {
-        if (t["attachEvent"]) t["attachEvent"]("onload", load);
-        else t.addEventListener("load", load, undefined);
-    }
+      e.getElementsByTagName("script")[0].parentNode.appendChild(t);
+    };
+
+  // Add the script
+  if (document.readyState === "complete") {
+    load();
+  } else {
+    if (t["attachEvent"]) t["attachEvent"]("onload", load);
+    else t.addEventListener("load", load, undefined);
+  }
 
 }();
