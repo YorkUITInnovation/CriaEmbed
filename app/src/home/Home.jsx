@@ -15,8 +15,6 @@ const Container = styled.div`
     outline: 1px solid #e3e3e3;
     box-shadow: 0 0 5px 2px rgba(227, 227, 227, 0.69);
     background: white;
-
-
 `;
 
 export default class Home extends Component {
@@ -30,7 +28,7 @@ export default class Home extends Component {
     document.addEventListener("chatExpired", () => this.setState({chatExpired: true}));
 
     // Fetch config
-    await window.Cria.fetchConfig()
+    await window.Cria.fetchConfig();
     document.dispatchEvent(new CustomEvent("criaConfigLoaded"));
     this.setState({configLoaded: true});
   }

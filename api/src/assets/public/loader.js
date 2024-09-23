@@ -2,7 +2,6 @@
 This is the Cria loader, built by IT Innovation at York University in 2024.
 
 If you're stalking this script, hello!
-- Isaac
 */
 !function () {
 

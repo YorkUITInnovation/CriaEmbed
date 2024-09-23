@@ -5,11 +5,11 @@ export default class TrackingCache extends RedisController {
   private EXPIRE_AFTER = 60 * 60 * 24; // Keep for 24 hours
   private buildKey = (chatId: string) => `cria-embed:tracking:${chatId}`;
 
-  async set(chatId: string, trackingData: Record<string, any>): Promise<string> {
+  async set(chatId: string, sessionData: Record<string, any>): Promise<string> {
 
     await this.redis.set(
         this.buildKey(chatId),
-        JSON.stringify(trackingData),
+        JSON.stringify(sessionData),
         "EX",
         this.EXPIRE_AFTER
     );
@@ -18,11 +18,13 @@ export default class TrackingCache extends RedisController {
 
   }
 
-  async get(chatId: string): Promise<string | null> {
+  async get(chatId: string): Promise<Record<string, any>> {
 
-    return this.redis.get(
+    const data = await this.redis.get(
         this.buildKey(chatId)
     )
+
+    return data ? JSON.parse(data) : {};
 
   }
 

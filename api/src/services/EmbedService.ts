@@ -197,20 +197,21 @@ export class EmbedService extends BaseService {
     return this.trackingCache.set(chatId, sessionData);
   }
 
+  public async transferTrackingInfo(
+      previousChatId: string,
+      newChatId: string
+  ) {
+    const trackingData = await this.trackingCache.get(previousChatId);
+    await this.trackingCache.set(newChatId, trackingData);
+  }
+
   public async getTrackingInfo(
       botName: string,
       chatId: string,
       apiKey: string
   ): Promise<Record<string, any> | null> {
     await this.manageService.botExistsAndIsAuthorized(botName, apiKey);
-    const trackingData: string | null = await this.trackingCache.get(chatId);
-
-    console.log('retrieving', trackingData);
-
-    if (!trackingData) {
-      return null;
-    }
-    return JSON.parse(trackingData);
+    return await this.trackingCache.get(chatId);
   }
 
   async retrieveEmbed(

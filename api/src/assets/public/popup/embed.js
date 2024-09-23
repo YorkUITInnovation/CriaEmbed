@@ -40,8 +40,8 @@
   criaEmbedImage.src = window.CRIA.botIconUrl;
 
   if (window.CRIA.embedHoverTooltip != null) {
-    criaEmbedImage.setAttribute("label",  window.CRIA.embedHoverTooltip);
-    criaEmbedImage.setAttribute("title",  window.CRIA.embedHoverTooltip);
+    criaEmbedImage.setAttribute("label", window.CRIA.embedHoverTooltip);
+    criaEmbedImage.setAttribute("title", window.CRIA.embedHoverTooltip);
   }
 
   // Default enabled status
@@ -61,15 +61,35 @@ function isEmbedEnabled() {
 
 }
 
+/**
+ * @param {boolean} event.detail
+ */
+window.addEventListener(
+  "message", (event) => {
+    try {
+      let data = JSON.parse(event.data) || {};
+      if (data.action === "criaSetEmbedEnabled") {
+        setEmbedEnabled(data.value);
+      }
+    } catch (ex) {
+    }
+  },
+  false,
+);
+/**
+ * @param {boolean} isEnabled
+ */
 function setEmbedEnabled(isEnabled) {
   const criaChat = document.getElementById("cria-chat");
   const criaLauncher = document.getElementById("cria-launcher");
-
   const newState = isEnabled ? "true" : "false";
-
   criaChat.setAttribute("enabled", newState);
   criaLauncher.setAttribute("enabled", newState);
+}
 
+function setLauncherVisible(isVisible) {
+  const criaLauncher = document.getElementById("cria-launcher");
+  criaLauncher.style.display = isVisible ? "block" : "none";
 }
 
 const EMBED_POSITIONS = {
@@ -200,6 +220,7 @@ class ResizableChat {
 
 }
 
+window.CRIA.setLauncherVisible = setLauncherVisible;
 window.CRIA.isEmbedEnabled = isEmbedEnabled;
 window.CRIA.setEmbedEnabled = setEmbedEnabled;
 window.CRIA.setEmbedLocation = setEmbedPosition;
