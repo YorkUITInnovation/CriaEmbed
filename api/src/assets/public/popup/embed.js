@@ -5,7 +5,7 @@
   const [rawCSS, rawHTML] = [
     await fetch(window.CRIA.chatApiUrl + "/public/popup/embed.css?cache=" + Math.random().toString()),
     await fetch(window.CRIA.chatApiUrl + "/public/popup/embed.html")
-  ]
+  ];
 
   // Inject HTML
   const htmlInjection = document.createElement("div");
@@ -58,7 +58,6 @@
 function isEmbedEnabled() {
   const criaChat = document.getElementById("cria-chat");
   return criaChat.getAttribute("enabled") === "true";
-
 }
 
 /**
@@ -82,9 +81,11 @@ window.addEventListener(
 function setEmbedEnabled(isEnabled) {
   const criaChat = document.getElementById("cria-chat");
   const criaLauncher = document.getElementById("cria-launcher");
+  const criaWrapper = document.getElementById("cria-wrapper");
   const newState = isEnabled ? "true" : "false";
   criaChat.setAttribute("enabled", newState);
   criaLauncher.setAttribute("enabled", newState);
+  criaWrapper.setAttribute("enabled", newState);
 }
 
 function setLauncherVisible(isVisible) {
