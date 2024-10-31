@@ -65,6 +65,7 @@ const CloseMenuButton = styled.button`
     cursor: pointer;
     color: white;
     padding: 5px 10px;
+    font-weight: bold;
     border-radius: 5px;
     
     &:hover {
@@ -171,10 +172,10 @@ export default class ChatHeader extends Component {
       <Container $bgColor={bgTheme || "rgb(192, 38, 38)"}>
         <TextContainer>
           <Header1>
-            {window.Cria.botName || "Course Assistant"}
+            {window.Cria.botName || "New Bot"}
           </Header1>
           <Header2>
-            {window.Cria.botSubName || "SAMPLE COURSE"}
+            {window.Cria.botSubName || "New Bot Subtitle"}
           </Header2>
         </TextContainer>
         <ButtonContainer>

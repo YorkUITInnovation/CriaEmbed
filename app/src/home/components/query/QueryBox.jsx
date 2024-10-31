@@ -7,6 +7,8 @@ import {ResetChat} from "./buttons/ResetChat.jsx";
 import {SendMessage} from "./buttons/SendMessage.jsx";
 import SpeechAutoPlay from "./buttons/SpeechAutoPlay.jsx";
 import {StartText} from "../chat/ChatSystemMessage.jsx";
+import BotTrustWarning from "./buttons/BotTrustWarning.jsx";
+import PoweredByAura from "./buttons/PoweredByAura.jsx";
 
 const OuterContainer = styled.div`
     width: 100%;
@@ -195,7 +197,7 @@ export default class QueryBox extends Component {
     return (
       <OuterContainer id={"queryBox"}>
         <SubOuterContainer>
-          <StartText/>
+          <BotTrustWarning/>
           <Container $boxTheme={this.getQueryBoxTheme()}>
             <QueryArea isLoading={this.state.isLoading}/>
             <ButtonArea>
@@ -215,6 +217,7 @@ export default class QueryBox extends Component {
               </div>
             </ButtonArea>
           </Container>
+          <PoweredByAura/>
         </SubOuterContainer>
       </OuterContainer>
     )
