@@ -27,6 +27,9 @@ Mobile Devices
         top: 0;
         border-radius: 0;
     }
+    body[cria-enabled="true"] {
+        overflow: hidden;
+    }
 }
 
 

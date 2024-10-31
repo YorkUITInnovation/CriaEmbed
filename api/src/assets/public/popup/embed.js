@@ -82,10 +82,12 @@ function setEmbedEnabled(isEnabled) {
   const criaChat = document.getElementById("cria-chat");
   const criaLauncher = document.getElementById("cria-launcher");
   const criaWrapper = document.getElementById("cria-wrapper");
+  const htmlBody = document.body;
   const newState = isEnabled ? "true" : "false";
   criaChat.setAttribute("enabled", newState);
   criaLauncher.setAttribute("enabled", newState);
   criaWrapper.setAttribute("enabled", newState);
+  htmlBody.setAttribute('cria-enabled', newState);
 }
 
 function setLauncherVisible(isVisible) {
