@@ -1,8 +1,7 @@
 import {styled} from "styled-components";
-import {getTheme} from "../../chat/ChatHeader.jsx";
 
 export const PoweredBy = styled.a`
-    font-size: 8.5px;
+    font-size: 9px;
     color: #9a9999;
     display: flex;
     margin-top: 5px;
@@ -33,9 +32,15 @@ export default function PoweredByAura() {
       <PoweredBy
         target={"_blank"}
         href={"https://www.yorku.ca/uit/faculty-and-staff-services/AI/"}
-      >{Cria.botName} is Powered by YU AURA
-        <PoweredByLogo fill={"#9a9999"} width="800px" height="800px" viewBox="0 0 32 32" version="1.1"
-                       xmlns="http://www.w3.org/2000/svg">
+      >Powered by YU AURA
+        <PoweredByLogo
+          fill={"#9a9999"}
+          width="800px"
+          height="800px"
+          viewBox="0 0 32 32"
+          version="1.1"
+          xmlns="http://www.w3.org/2000/svg"
+        >
           <title>lightning-bolt</title>
           <path d="M23.5 13.187h-7.5v-12.187l-7.5 17.813h7.5v12.187l7.5-17.813z"></path>
         </PoweredByLogo>
