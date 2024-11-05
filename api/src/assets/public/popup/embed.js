@@ -63,7 +63,7 @@
 
     // Set embed location
     setEmbedPosition(chatConfig.embedPosition || "BL");
-    console.info(`Loaded Cria Embed for "${chatConfig.botName}" (${window.CRIA.botId}) bot!`);
+    console.info(`Loaded Cria Embed for "${chatConfig.botName}" (${chatConfig.botId}) bot!`);
   }();
 
   function isEmbedEnabled() {
@@ -143,14 +143,14 @@
       "cria-chat-s": this.onVerticalUpdate.bind(this),
       "cria-chat-w": this.onHorizontalUpdate.bind(this),
       "cria-chat-e": this.onHorizontalUpdate.bind(this)
-    }
+    };
 
     #dragIdMultiplier = {
       "cria-chat-n": 1,
       "cria-chat-s": -1,
       "cria-chat-e": 1,
       "cria-chat-w": -1
-    }
+    };
 
     constructor() {
       document.addEventListener("mousedown", this.onMouseDownEvent.bind(this));
@@ -158,12 +158,24 @@
       document.addEventListener("mousemove", this.onMouseMoveEvent.bind(this));
     }
 
+    isResizableHandle(target) {
+      const isValidHandle = Object.keys(this.#dragIdFuncMap).some(selector =>
+        target.classList.contains(selector)
+      );
+
+      const isCorrectBotId = target.getAttribute("botId") === String(botId);
+      return isValidHandle && isCorrectBotId;
+    }
+
     /** Start dragging */
     onMouseDownEvent(event) {
-      if (!(Object.keys(this.#dragIdFuncMap).includes(event.target.id))) return;
+      if (!this.isResizableHandle(event.target)) {
+        return;
+      }
 
+      // Ensure the selected element has a class matching one of the resizable handlers and the current botId
       this.#dragging = true;
-      this.#dragId = event.target.id;
+      this.#dragId = event.target.className; // Use the class name instead of id
       this.#dragInitPos = {x: event.clientX, y: event.clientY};
       document.querySelector(this.#overlaySelector).style.pointerEvents = "all";
     }
@@ -178,7 +190,6 @@
 
     /** On mouse move event */
     onMouseMoveEvent(event) {
-
       // If not dragging
       if (!this.#dragging) {
         return;
@@ -192,7 +203,6 @@
 
       // X,Y coordinates of mouse
       this.#dragIdFuncMap[this.#dragId](event.clientX, event.clientY);
-
     }
 
     getMaxWidth() {
@@ -202,7 +212,6 @@
     getMaxHeight() {
       return Math.floor(window.innerHeight * this.#maxHeightProportion);
     }
-
 
     /** Horizontally resize */
     onHorizontalUpdate(clientX, clientY) {
@@ -216,7 +225,6 @@
 
       criaEmbed.style.width = `${embedWidth}px`;
       this.#dragInitPos = {x: clientX, y: clientY};
-
     }
 
     /** Vertically resize */
@@ -232,7 +240,6 @@
       criaEmbed.style.height = `${embedHeight}px`;
       this.#dragInitPos = {x: clientX, y: clientY};
     }
-
   }
 
   window.CRIA["$botId"].setLauncherVisible = setLauncherVisible;
@@ -240,6 +247,5 @@
   window.CRIA["$botId"].setEmbedEnabled = setEmbedEnabled;
   window.CRIA["$botId"].setEmbedLocation = setEmbedPosition;
   window.CRIA["$botId"].resizableChat = new ResizableChat();
-
 
 }
