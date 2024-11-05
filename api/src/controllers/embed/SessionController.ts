@@ -9,7 +9,7 @@ interface SessionDataResponse extends CriaResponse {
 }
 
 @Tags("Sessions")
-@Route("/embed/{botName}/session_data")
+@Route("/embed/{botId}/session_data")
 export class SessionController extends BaseController {
 
   constructor(
@@ -20,14 +20,14 @@ export class SessionController extends BaseController {
 
   @Get()
   public async getSessionData(
-      @Path() botName: string,
+      @Path() botId: string,
       @Header(API_KEY_HEADER_NAME) apiKey: string,
       @Query() chatId: string
   ): Promise<string | SessionDataResponse> {
 
     try {
       const trackingData = await this.service.getTrackingInfo(
-          botName,
+          botId,
           chatId,
           apiKey
       );

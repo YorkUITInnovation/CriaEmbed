@@ -8,14 +8,21 @@ If you're stalking this script, hello!
   let t = window,
     e = document,
     load = function () {
+      window.CRIA ||= {};
 
-      window.CRIA = $objectReplace;
+      const botConfig = $objectReplace;
+      window.CRIA[String(botConfig.botId)] = botConfig;
 
       let t = e.createElement("script");
 
       t.type = "text/javascript";
       t.async = true;
-      t.src = window.CRIA.chatApiUrl + "/public/popup/embed.js" + `?nocache=${Math.random()}`;
+
+      t.src = botConfig.chatApiUrl
+        + `/embed/${botConfig.botId}/popup.js`
+        + `?nocache=${Math.random()}`
+        + `&hideLauncher=${botConfig.hideLauncher}`;
+
       t.id = "cria-embed-loader";
 
       e.getElementsByTagName("script")[0].parentNode.appendChild(t);

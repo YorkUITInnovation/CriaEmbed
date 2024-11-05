@@ -5,7 +5,7 @@ import {EmbedPublicConfig, EmbedService} from "../../services/EmbedService";
 import {CriaError, CriaResponse, EmbedConfigResponse} from "../../models/CriaResponse";
 
 @Tags("Embed")
-@Route("/embed/{botName}/config")
+@Route("/embed/{botId}/config")
 export class EmbedConfigController extends BaseController {
 
   constructor(
@@ -16,7 +16,7 @@ export class EmbedConfigController extends BaseController {
 
   @Get()
   public async retrieveConfig(
-      @Path() botName: string,
+      @Path() botId: string,
       @Query() chatId: string,
   ): Promise<EmbedConfigResponse> {
 
@@ -33,7 +33,7 @@ export class EmbedConfigController extends BaseController {
     try {
       const config: EmbedPublicConfig = await this.service.retrieveEmbedConfig(
           chatId,
-          botName
+          botId
       );
       this.setStatus(200);
       return {

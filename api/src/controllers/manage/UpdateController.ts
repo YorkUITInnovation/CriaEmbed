@@ -11,7 +11,7 @@ interface UpdateResponse extends CriaResponse {
 
 
 @Tags("Manage")
-@Route("manage/{botName}/config")
+@Route("manage/{botId}/config")
 export class UpdateController extends BaseController {
 
     constructor(
@@ -22,14 +22,14 @@ export class UpdateController extends BaseController {
 
     @Patch()
     public async update(
-        @Path() botName: string,
+        @Path() botId: string,
         @Body() config: IBotBaseEmbedConfig,
         @Header(API_KEY_HEADER_NAME) apiKey: string
     ): Promise<UpdateResponse> {
 
         try {
             const botConfig: IBotEmbed = await this.service.updateBot(
-                {...config, botName: botName},
+                {...config, botName: botId},
                 apiKey
             )
             this.setStatus(200);

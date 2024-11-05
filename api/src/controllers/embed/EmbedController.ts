@@ -1,4 +1,4 @@
-import {Body, Example, Get, Header, Middlewares, Path, Post, Produces, Request, Route, Tags} from "tsoa";
+import {Body, Example, Get, Header, Middlewares, Path, Post, Produces, Query, Request, Route, Tags} from "tsoa";
 import {BotNotFoundError, EmbedNotFoundError, UnauthorizedError} from "../../services/ManageService";
 import {BaseController} from "../../models/BaseController";
 import {EmbedService} from "../../services/EmbedService";
@@ -11,7 +11,7 @@ interface EmbedBody {
 }
 
 
-@Route("/embed/{botName}/load")
+@Route("/embed/{botId}/load")
 export class EmbedController extends BaseController {
 
   constructor(
@@ -37,9 +37,10 @@ export class EmbedController extends BaseController {
   @Middlewares(...RATE_LIMIT_EMBED_ALL_HANDLERS)
   public async getLoadEmbed(
       @Request() request: e.Request,
-      @Path() botName: string
+      @Path() botId: string,
+      @Query() hideLauncher: boolean = false
   ): Promise<string | CriaResponse> {
-    return await this.loadEmbed(request, botName);
+    return await this.loadEmbed(request, botId, hideLauncher);
   }
 
   @Tags("Sessions")
@@ -59,18 +60,20 @@ export class EmbedController extends BaseController {
   @Middlewares(...RATE_LIMIT_EMBED_ALL_HANDLERS)
   public async postLoadEmbed(
       @Request() request: e.Request,
-      @Path() botName: string,
+      @Path() botId: string,
       @Header(API_KEY_HEADER_NAME) apiKey: string,
-      @Body() sessionData: EmbedBody
+      @Body() sessionData: EmbedBody,
+      @Query() hideLauncher: boolean = false
   ): Promise<string | CriaResponse> {
-    return await this.loadEmbed(request, botName, sessionData, apiKey);
+    return await this.loadEmbed(request, botId, hideLauncher, sessionData, apiKey);
   }
 
   private async loadEmbed(
       request: e.Request,
-      botName: string,
+      botId: string,
+      hideLauncher: boolean,
       sessionData?: Record<string, any>,
-      apiKey?: string
+      apiKey?: string,
   ): Promise<string | CriaResponse> {
     try {
 
@@ -84,12 +87,12 @@ export class EmbedController extends BaseController {
       }
 
       const [embed, chatId] = await this.service.retrieveEmbed(
-          botName,
+          botId, hideLauncher
       );
 
       if (sessionData && apiKey) {
         await this.service.saveTrackingInfo(
-            botName,
+            botId,
             chatId,
             sessionData,
             apiKey

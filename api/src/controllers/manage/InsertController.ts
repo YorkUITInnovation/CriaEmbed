@@ -11,7 +11,7 @@ interface InsertResponse extends CriaResponse {
 
 
 @Tags("Manage")
-@Route("manage/{botName}/insert")
+@Route("manage/{botId}/insert")
 export class InsertController extends BaseController {
 
   constructor(
@@ -22,14 +22,14 @@ export class InsertController extends BaseController {
 
   @Post()
   public async insert(
-      @Path() botName: string,
+      @Path() botId: string,
       @Body() config: IBotBaseEmbedConfig,
       @Header(API_KEY_HEADER_NAME) apiKey: string
   ): Promise<InsertResponse> {
 
     try {
       const botConfig: IBotEmbed = await this.service.insertBot(
-          {...config, botName: botName},
+          {...config, botName: botId},
           apiKey
       )
       this.setStatus(200);

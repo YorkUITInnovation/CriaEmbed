@@ -25,6 +25,7 @@ type EmbedPopupConfig = {
   defaultEnabled?: boolean | null;
   embedPosition?: EmbedPosition;
   embedHoverTooltip?: string | null;
+  hideLauncher: boolean;
 }
 
 export type EmbedPublicConfig = {
@@ -216,6 +217,7 @@ export class EmbedService extends BaseService {
 
   async retrieveEmbed(
       botName: string,
+      hideLauncher: boolean
   ): Promise<[string, string]> {
 
     const botConfig: IBotEmbed = await this.manageService.retrieveBot(botName, "", true);
@@ -234,7 +236,8 @@ export class EmbedService extends BaseService {
       botIconUrl: botConfig.botIconUrl || Config.THIS_APP_URL + "/public/popup/cria.png",
       defaultEnabled: botConfig.botEmbedDefaultEnabled,
       embedPosition: botConfig.botEmbedPosition || EmbedPosition.BL,
-      embedHoverTooltip: botConfig.embedHoverTooltip || null
+      embedHoverTooltip: botConfig.embedHoverTooltip || null,
+      hideLauncher: hideLauncher
     }
 
     const embedJs = EMBED_BASE_SCRIPT.replace(

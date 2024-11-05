@@ -12,7 +12,7 @@ type ChatPayload = {
 
 
 @Tags("Embed")
-@Route("/embed/{botName}/send")
+@Route("/embed/{botId}/send")
 export class EmbedChatController extends BaseController {
 
     constructor(
@@ -24,13 +24,13 @@ export class EmbedChatController extends BaseController {
     @Post()
     @Middlewares(...RATE_LIMIT_CHAT_ALL_HANDLERS)
     public async send(
-        @Path() botName: string,
+        @Path() botId: string,
         @Body() config: ChatPayload,
     ): Promise<SendChatResponse> {
 
         try {
             const chat: SendChatResponse = await this.service.sendEmbedChat(
-                botName,
+                botId,
                 config.chatId,
                 config.prompt
             )

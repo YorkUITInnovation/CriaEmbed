@@ -11,7 +11,7 @@ interface RetrieveResponse extends CriaResponse {
 }
 
 @Tags("Manage")
-@Route("manage/{botName}/config")
+@Route("manage/{botId}/config")
 export class RetrieveController extends BaseController {
 
     constructor(
@@ -22,12 +22,12 @@ export class RetrieveController extends BaseController {
 
     @Get()
     public async retrieve(
-        @Path() botName: string,
+        @Path() botId: string,
         @Header(API_KEY_HEADER_NAME) apiKey: string
     ): Promise<RetrieveResponse> {
 
         try {
-            const botConfig: IBotEmbed = await this.service.retrieveBot(botName, apiKey)
+            const botConfig: IBotEmbed = await this.service.retrieveBot(botId, apiKey)
             this.setStatus(200);
 
             return {

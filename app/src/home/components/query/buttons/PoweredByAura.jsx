@@ -32,7 +32,7 @@ export default function PoweredByAura() {
       <PoweredBy
         target={"_blank"}
         href={"https://www.yorku.ca/uit/faculty-and-staff-services/AI/"}
-      >Powered by YU AURA
+      >Created Using YU AURA
         <PoweredByLogo
           fill={"#9a9999"}
           width="800px"

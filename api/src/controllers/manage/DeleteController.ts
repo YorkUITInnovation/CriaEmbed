@@ -8,7 +8,7 @@ interface DeleteResponse extends CriaResponse {
 }
 
 @Tags("Manage")
-@Route("/manage/{botName}/delete")
+@Route("/manage/{botId}/delete")
 export class DeleteController extends BaseController {
 
   constructor(
@@ -19,16 +19,16 @@ export class DeleteController extends BaseController {
 
   @Delete()
   public async delete(
-      @Path() botName: string,
+      @Path() botId: string,
       @Header(API_KEY_HEADER_NAME) apiKey: string
   ): Promise<DeleteResponse> {
 
     try {
-      await this.service.deleteBot(botName, apiKey)
+      await this.service.deleteBot(botId, apiKey)
       this.setStatus(200);
 
       return {
-        botName: botName,
+        botName: botId,
         message: "Bot has been cast into the void.",
         status: 200,
         code: "SUCCESS",
@@ -48,7 +48,7 @@ export class DeleteController extends BaseController {
             timestamp: Date.now().toString(),
             status: 404,
             message: "That bot embed does not exist.",
-            botName: botName,
+            botName: botId,
             code: "NOT_FOUND"
           };
         case BotNotFoundError:
