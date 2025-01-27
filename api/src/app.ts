@@ -13,45 +13,60 @@ import multer from "multer";
 
 export const app = express();
 export const baseRouter = express.Router();
-export const upload = multer();
-
-const multipartToJson = upload.any(); // 'any' accepts all files and fields
 
 /**
- * This middleware converts multipart uploads to JSON before it hits the router layer.
- * As long as we don't have to deal with files, we can convert the multipart form to JSON.
- * The embed server should never need that, so this 'fix' works. This is required because the
- * version of Moodle on eClass has a weird behaviour that rewrites JSON requests to multipart, so we need to back-convert.
+ * Rewrite application/json; boundary=<BOUNDARY> as multipart/form-data; boundary=<BOUNDARY>
+ *
+ * @param req The request object
+ * @param _ The response object
+ * @param next The next function
  */
-const multipartConverterMiddleware = (
-    req: e.Request,
-    res: e.Response,
-    next: e.NextFunction
-) => {
+function FixContentType(req: e.Request, _: e.Response, next: e.NextFunction) {
+  // Extract the Content-Type header
+  const contentType = req.headers['content-type'] || '';
 
-  multipartToJson(req, res, (err) => {
-    // If error, let the downstream middlewares handle it
-    if (err) {
-      return next(err);
+  // Check if the Content-Type is mislabeled as JSON but includes a boundary parameter
+  if (contentType.startsWith('application/json') && contentType.includes('boundary=')) {
+    // Extract the boundary value
+    const boundary = contentType.split('boundary=')[1];
+
+    // Properly format as multipart/form-data with the correct boundary
+    if (boundary) {
+      req.headers['content-type'] = `multipart/form-data; boundary=${boundary}`;
     }
+  }
 
-    // Initialize body if it doesn't exist
-    req.body ||= {};
-
-    // If files exist, convert them to strings
-    if (req.files) {
-      for (let file of Object.values(req.files)) {
-        req.body[file.fieldname] = file.buffer.toString("utf-8");
-      }
-    }
-    next()
-  });
-
+  next();
 }
+
+app.use(FixContentType);
+
+
+const upload = multer();
+app.use((req, res, next) => {
+  const contentType = req.headers['content-type'];
+
+  if (contentType && contentType.includes('multipart/form-data')) {
+    // Use multer to parse the multipart data
+    upload.any()(req, res, (err) => {
+      if (err) {
+        return res.status(400).json({ error: 'Error parsing multipart/form-data' });
+      }
+
+      // Rewrite the payload to {"a": "b"}
+      req.body = {...req.body};
+
+      // Call the next middleware
+      next();
+    });
+  } else {
+    // If not multipart/form-data, just continue
+    next();
+  }
+});
 
 // express middleware
 baseRouter.use(
-    multipartConverterMiddleware,
     urlencoded({extended: true}),
     json(),
     cors(),
