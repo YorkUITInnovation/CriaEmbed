@@ -22,7 +22,6 @@ export class AzureService extends BaseService {
   }
 
   async handleRequest(req: e.Request, res: e.Response): Promise<void> {
-
     const microsoftBotId: string = this.getAppIdFromJwt(req.headers.authorization as string);
     const embedBot = await this.embedService.manageService.retrieveBotByMicrosoftAppId(microsoftBotId);
 

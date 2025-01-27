@@ -29,6 +29,7 @@ export interface IBotBaseEmbedConfig {
   microsoftAppPassword?: string | null,
   integrationsNoContextReply?: boolean | null,
   integrationsFirstEmailOnly?: boolean | null,
+  integrationsWhitelistFilter?: string | null,
   embedHoverTooltip?: string | null
   botContact?: string | null
 }
@@ -113,9 +114,9 @@ export class BotEmbed extends MySQLController {
           `
               INSERT INTO \`EmbedBot\` (botName, botTitle, botSubTitle, botGreeting, botIconUrl, botEmbedTheme,
                                         botWatermark, botLocale, initialPrompts, microsoftAppId, microsoftAppPassword,
-                                        integrationsNoContextReply, integrationsFirstEmailOnly, botEmbedDefaultEnabled,
+                                        integrationsNoContextReply, integrationsFirstEmailOnly, integrationsWhitelistFilter, botEmbedDefaultEnabled,
                                         botTrustWarning, embedHoverTooltip, botContact)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `,
           [
             bot.botName,
@@ -131,6 +132,7 @@ export class BotEmbed extends MySQLController {
             bot.microsoftAppPassword,
             Number(bot.integrationsNoContextReply),
             Number(bot.integrationsFirstEmailOnly),
+            bot.integrationsWhitelistFilter,
             Number(bot.botEmbedDefaultEnabled),
             bot.botTrustWarning,
             bot.embedHoverTooltip,
@@ -174,6 +176,7 @@ export class BotEmbed extends MySQLController {
                   microsoftAppPassword=?,
                   integrationsNoContextReply=?,
                   integrationsFirstEmailOnly=?,
+                  integrationsWhitelistFilter=?,
                   botEmbedDefaultEnabled=?,
                   botTrustWarning=?,
                   embedHoverTooltip=?,
@@ -195,6 +198,7 @@ export class BotEmbed extends MySQLController {
             bot.microsoftAppPassword,
             Number(bot.integrationsNoContextReply),
             Number(bot.integrationsFirstEmailOnly),
+            bot.integrationsWhitelistFilter,
             Number(bot.botEmbedDefaultEnabled),
             bot.botTrustWarning,
             bot.embedHoverTooltip,

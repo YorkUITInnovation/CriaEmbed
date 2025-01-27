@@ -14,7 +14,6 @@ import {IBotEmbed} from "../../database/mysql/controllers/BotEmbed";
 import AzureChatCache from "../../database/redis/controllers/AzureChatCache";
 import {TeamsHandler} from "./channels/TeamsHandler";
 
-
 export class ChannelNotSupportedError extends Error {
 }
 
@@ -70,6 +69,20 @@ export function getChannelHandler(
 
 }
 
+
+function parseRegExpString(regExpString: string) {
+  const regExpParts = regExpString.match(/^\/(.*?)\/([a-z]*)$/);
+  if (regExpParts) {
+    const pattern = regExpParts[1];
+    const flags = regExpParts[2];
+    return { pattern, flags };
+  } else {
+    // If the format does not match, return the input as is but handle it as having no flags
+    return { pattern: regExpString, flags: undefined };
+  }
+}
+
+
 export function getActivityHandler(
     embed: IBotEmbed,
     service: EmbedService,
@@ -77,10 +90,22 @@ export function getActivityHandler(
 ): ActivityHandler {
   const activityHandler: ActivityHandler = new ActivityHandler();
 
+  function shouldReply(context: TurnContext): boolean {
+
+    if (!embed.integrationsWhitelistFilter) {
+      return true;
+    }
+
+    const { pattern, flags } = parseRegExpString(embed.integrationsWhitelistFilter);
+    return new RegExp(pattern, flags).test(context.activity.from.id);
+  }
+
   // Handle messages
   async function onMessage(context: TurnContext, next: NextFunction): Promise<void> {
-    const channelHandler: ChannelHandler = getChannelHandler(embed, service, chatCache, context);
-    await channelHandler.onMessage(context);
+    if (shouldReply(context)) {
+      const channelHandler: ChannelHandler = getChannelHandler(embed, service, chatCache, context);
+      await channelHandler.onMessage(context);
+    }
     next();
   }
 

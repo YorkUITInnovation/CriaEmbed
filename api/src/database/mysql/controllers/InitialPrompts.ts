@@ -65,26 +65,6 @@ export class BotEmbed extends MySQLController {
     })
   }
 
-  insert(bot: IBotEmbedConfig): Promise<IBotEmbed> {
-    return new Promise((resolve, reject) => {
-      this.pool.query<ResultSetHeader>(
-          `
-              INSERT INTO \`EmbedBot\` (botName, botTitle, botSubTitle, botGreeting, botIconUrl, botEmbedTheme,
-                                        botWatermark, botLocale)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `,
-          [bot.botName, bot.botTitle, bot.botSubTitle, bot.botGreeting, bot.botIconUrl, bot.botEmbedTheme, bot.botWatermark, bot.botLocale],
-          (err, res: ResultSetHeader) => {
-            if (err || !res) reject(err)
-            else
-              this.retrievedById(res.insertId)
-                  .then(bot => resolve(bot!))
-                  .catch(reject)
-          }
-      )
-    })
-  }
-
   update(bot: IBotEmbedConfig): Promise<IBotEmbed | undefined> {
     return new Promise((resolve, reject) => {
       this.pool.query<ResultSetHeader>(

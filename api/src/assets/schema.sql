@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS `EmbedBot` (
     `embedHoverTooltip` VARCHAR(256),
     `integrationsNoContextReply` TINYINT,
     `integrationsFirstEmailOnly` TINYINT,
+    `integrationsWhitelistFilter` VARCHAR(256),
 
     # Microsoft App ID
     `microsoftAppId` VARCHAR(128) UNIQUE,
