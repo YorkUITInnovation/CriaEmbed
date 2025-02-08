@@ -1,0 +1,1 @@
+export const YORK_AI_PAGE: string = "https://www.yorku.ca/uit/faculty-and-staff-services/AI/"

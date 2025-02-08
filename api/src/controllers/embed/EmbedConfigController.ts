@@ -1,4 +1,4 @@
-import {Get, Path, Query, Route, Tags} from "tsoa";
+import {Get, OperationId, Path, Query, Route, Tags} from "tsoa";
 import {EmbedNotFoundError} from "../../services/ManageService";
 import {BaseController} from "../../models/BaseController";
 import {EmbedPublicConfig, EmbedService} from "../../services/EmbedService";
@@ -15,6 +15,7 @@ export class EmbedConfigController extends BaseController {
   }
 
   @Get()
+  @OperationId("embedGetConfig")
   public async retrieveConfig(
       @Path() botId: string,
       @Query() chatId: string,

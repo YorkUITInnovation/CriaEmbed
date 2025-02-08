@@ -1,4 +1,4 @@
-import {Body, Middlewares, Post, Request, Route, Tags} from "tsoa";
+import {Body, Middlewares, OperationId, Post, Request, Route, Tags} from "tsoa";
 import {BaseController} from "../../models/BaseController";
 import {EmbedService} from "../../services/EmbedService";
 import {RATE_LIMIT_CHAT_ALL_HANDLERS} from "../../models/LimitGenerator";
@@ -20,7 +20,8 @@ export class AzureIntegrationController extends BaseController {
 
   @Post()
   @Middlewares(...RATE_LIMIT_CHAT_ALL_HANDLERS)
-  public async exists(
+  @OperationId("azureMessageHandler")
+  public async messageHandler(
       @Request() req: e.Request,
       @Body() _: any
   ): Promise<void> {

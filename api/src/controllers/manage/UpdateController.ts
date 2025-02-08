@@ -1,4 +1,4 @@
-import {Body, Header, Patch, Path, Route, Tags} from "tsoa";
+import {Body, Header, OperationId, Patch, Path, Route, Tags} from "tsoa";
 import {BotNotFoundError, EmbedNotFoundError, ManageService, UnauthorizedError} from "../../services/ManageService";
 import {BaseController} from "../../models/BaseController";
 
@@ -12,6 +12,7 @@ interface UpdateResponse extends CriaResponse {
 
 @Tags("Manage")
 @Route("manage/{botId}/config")
+@OperationId("manageUpdateBotConfig")
 export class UpdateController extends BaseController {
 
     constructor(

@@ -1,4 +1,4 @@
-import {Example, Get, Middlewares, Path, Produces, Query, Request, Route, Tags} from "tsoa";
+import {Example, Get, Middlewares, OperationId, Path, Produces, Query, Request, Route, Tags} from "tsoa";
 import {BaseController} from "../../../models/BaseController";
 import {EmbedService} from "../../../services/EmbedService";
 import {RATE_LIMIT_EMBED_ALL_HANDLERS} from "../../../models/LimitGenerator";
@@ -28,6 +28,7 @@ export class EmbedPopupJSController extends BaseController {
   )
   @Produces("application/javascript")
   @Middlewares(...RATE_LIMIT_EMBED_ALL_HANDLERS)
+  @OperationId("embedGetPopupJs")
   public async getPopupEmbedJs(
       @Path() botId: string,
       @Query() hideLauncher: boolean = false,

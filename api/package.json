@@ -28,7 +28,8 @@
     "mysql2": "^3.6.5",
     "node-html-parser": "^6.1.13",
     "swagger-ui-express": "^4.6.3",
-    "tsoa": "^5.1.1"
+    "tsoa": "^5.1.1",
+    "zustand": "^5.0.3"
   },
   "devDependencies": {
     "@types/cors": "^2.8.13",

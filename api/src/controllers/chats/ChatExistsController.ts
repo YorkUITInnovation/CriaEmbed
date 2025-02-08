@@ -1,4 +1,4 @@
-import {Get, Middlewares, Path, Route, Tags} from "tsoa";
+import {Get, Middlewares, OperationId, Path, Route, Tags} from "tsoa";
 import {BaseController} from "../../models/BaseController";
 import {EmbedService} from "../../services/EmbedService";
 import {CriaError, CriaResponse, ExistsChatResponse} from "../../models/CriaResponse";
@@ -17,6 +17,7 @@ export class ChatExistsController extends BaseController {
 
     @Get()
     @Middlewares(...RATE_LIMIT_CHAT_ALL_HANDLERS)
+    @OperationId("chatExists")
     public async exists(
         @Path() chatId: string,
     ): Promise<ExistsChatResponse> {

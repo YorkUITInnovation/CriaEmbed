@@ -6,9 +6,9 @@ import Dictaphone from "./buttons/Dictaphone.jsx";
 import {ResetChat} from "./buttons/ResetChat.jsx";
 import {SendMessage} from "./buttons/SendMessage.jsx";
 import SpeechAutoPlay from "./buttons/SpeechAutoPlay.jsx";
-import {StartText} from "../chat/ChatSystemMessage.jsx";
 import BotTrustWarning from "./buttons/BotTrustWarning.jsx";
 import PoweredByAura from "./buttons/PoweredByAura.jsx";
+import {VoiceModeToggle} from "./buttons/VoiceModeToggle.jsx";
 
 const OuterContainer = styled.div`
     width: 100%;
@@ -67,7 +67,7 @@ export default class QueryBox extends Component {
   #mounted = true;
   #chatExpiredCheckInterval = 120 * 1000;
   #chatExpired = false;
-  state = {isLoading: false};
+  state = {isLoading: false, isHidden: false};
 
   componentDidMount() {
 
@@ -78,7 +78,11 @@ export default class QueryBox extends Component {
     clearInterval(ChatExpiredCheckIntervalId)
     ChatExpiredCheckIntervalId = setInterval(this.checkChatExpired.bind(this), this.#chatExpiredCheckInterval);
     document.addEventListener("chatDispatch", this.onChatDispatch.bind(this));
+    document.addEventListener("voiceModeEnabled", this.onVoiceModeEnabled.bind(this));
+  }
 
+  onVoiceModeEnabled(event) {
+    this.setState({isHidden: event.detail});
   }
 
   onChatDispatch(event) {
@@ -195,7 +199,7 @@ export default class QueryBox extends Component {
   render() {
 
     return (
-      <OuterContainer id={"queryBox"}>
+      <OuterContainer id={"queryBox"} style={{display: this.state.isHidden ? 'none' : undefined}}>
         <SubOuterContainer>
           <BotTrustWarning/>
           <Container $boxTheme={this.getQueryBoxTheme()}>
@@ -206,7 +210,8 @@ export default class QueryBox extends Component {
                   id={"reset-chat-button"}
                 />
               </div>
-              <div>
+              <div style={{userSelect: "none", msUserSelect: "none"}}>
+                <VoiceModeToggle style={{marginRight: "8px"}}/>
                 <SpeechAutoPlay/>
                 <Dictaphone/>
                 <SendMessage

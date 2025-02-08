@@ -1,4 +1,4 @@
-import {Get, Header, Path, Route, Tags} from "tsoa";
+import {Get, Header, OperationId, Path, Route, Tags} from "tsoa";
 import {BotNotFoundError, EmbedNotFoundError, ManageService, UnauthorizedError} from "../../services/ManageService";
 import {BaseController} from "../../models/BaseController";
 
@@ -12,6 +12,7 @@ interface RetrieveResponse extends CriaResponse {
 
 @Tags("Manage")
 @Route("manage/{botId}/config")
+@OperationId("manageGetBotConfig")
 export class RetrieveController extends BaseController {
 
     constructor(

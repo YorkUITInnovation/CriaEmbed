@@ -1,4 +1,4 @@
-import {Body, Middlewares, Path, Post, Route, Tags} from "tsoa";
+import {Body, Middlewares, OperationId, Path, Post, Route, Tags} from "tsoa";
 import {EmbedNotFoundError} from "../../services/ManageService";
 import {BaseController} from "../../models/BaseController";
 import {EmbedService} from "../../services/EmbedService";
@@ -13,6 +13,7 @@ type ChatPayload = {
 
 @Tags("Embed")
 @Route("/embed/{botId}/send")
+
 export class EmbedChatController extends BaseController {
 
     constructor(
@@ -23,6 +24,7 @@ export class EmbedChatController extends BaseController {
 
     @Post()
     @Middlewares(...RATE_LIMIT_CHAT_ALL_HANDLERS)
+    @OperationId("embedSendChat")
     public async send(
         @Path() botId: string,
         @Body() config: ChatPayload,

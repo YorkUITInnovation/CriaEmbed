@@ -13,6 +13,7 @@ const Container = styled.div`
     width: 100%;
     height: 100%;
     overflow-y: scroll;
+    margin-top: 8px;
 `;
 
 const ExpiredContainer = styled.div`
@@ -41,7 +42,8 @@ export default class ChatList extends Component {
     waitingChat: null,
     waitingChatId: null,
     expiredMessage: null,
-    autoPlay: false
+    autoPlay: false,
+    isHidden: false
   }
 
   getInitialChats() {
@@ -67,11 +69,16 @@ export default class ChatList extends Component {
     document.addEventListener("commandSend", this.onCommandSend.bind(this));
     document.addEventListener("chatExpired", this.onChatExpired.bind(this));
     document.addEventListener("setAutoPlay", this.onSetAutoPlay.bind(this));
-
+    document.addEventListener("voiceModeEnabled", this.onVoiceModeEnabled.bind(this));
   }
 
   onSetAutoPlay(event) {
     this.setState({autoPlay: event.detail});
+  }
+
+
+  onVoiceModeEnabled(event) {
+    this.setState({isHidden: event.detail});
   }
 
   /** Shut it down when the chat expires */
@@ -226,7 +233,7 @@ export default class ChatList extends Component {
   render() {
 
     return (
-      <Container key={this.date} id={this.#elementId}>
+      <Container key={this.date} id={this.#elementId} style={{display: this.state.isHidden ? 'none' : undefined}}>
         <ChatSystemMessage messageMap={CHAT_STARTED_AT} timestamp={this.#startTime}/>
         {this.state.chats}
         {this.state.waitingChat}

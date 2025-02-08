@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 html, body {
   margin: 0;
   font-family: "IBM Plex Sans", "Roboto", -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, Noto Sans, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", Segoe UI Symbol, "Noto Color Emoji";
@@ -121,7 +123,6 @@ a:hover {
 .noselect {
   -webkit-touch-callout: none; /* iOS Safari */
   -webkit-user-select: none; /* Safari */
-  //noinspection CssUnknownProperty
   -khtml-user-select: none; /* Konqueror HTML */
   -moz-user-select: none; /* Old versions of Firefox */
   -ms-user-select: none; /* Internet Explorer/Edge */
@@ -151,7 +152,6 @@ a:hover {
 
 .queryTextArea {
   overflow: visible !important;
-  //     width: calc(100% - 20px);
   margin: 10px 10px 0 10px;
   border: none;
   background: transparent;
@@ -210,15 +210,13 @@ a:hover {
 
 
 .speech-listening {
-  color: #e31837 !important; // Sneaky york-red
+  color: #e31837 !important;
   animation: ghostly 2000ms infinite;
 }
 
 .auto-play-listening {
   animation: ghostly 2000ms infinite;
 }
-
-
 
 
 @media print {
@@ -275,4 +273,12 @@ a:hover {
 .reply-asset {
   border-radius: 5px;
   box-shadow: 0 0 2px black;
+}
+
+.bg-york-red {
+  background-color: rgb(227, 24, 55);
+}
+
+.fg-york-red {
+    color: rgb(253, 253, 253);
 }

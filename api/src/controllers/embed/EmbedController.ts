@@ -1,4 +1,18 @@
-import {Body, Example, Get, Header, Middlewares, Path, Post, Produces, Query, Request, Route, Tags} from "tsoa";
+import {
+  Body,
+  Example,
+  Get,
+  Header,
+  Middlewares,
+  OperationId,
+  Path,
+  Post,
+  Produces,
+  Query,
+  Request,
+  Route,
+  Tags
+} from "tsoa";
 import {BotNotFoundError, EmbedNotFoundError, UnauthorizedError} from "../../services/ManageService";
 import {BaseController} from "../../models/BaseController";
 import {EmbedService} from "../../services/EmbedService";
@@ -35,6 +49,7 @@ export class EmbedController extends BaseController {
   )
   @Produces("application/javascript")
   @Middlewares(...RATE_LIMIT_EMBED_ALL_HANDLERS)
+  @OperationId("embedGetLoader")
   public async getLoadEmbed(
       @Request() request: e.Request,
       @Path() botId: string,

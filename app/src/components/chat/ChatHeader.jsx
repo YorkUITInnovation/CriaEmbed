@@ -12,7 +12,6 @@ const Container = styled.div`
     justify-content: space-between;
     color: ${(props) => pickFontColorFromBg(props.$bgColor)};
     box-shadow: 0 2px 5px 2px rgba(0, 0, 0, 0.15);
-    margin-bottom: 8px;
 `;
 
 const TextContainer = styled.div`

@@ -1,4 +1,4 @@
-import {Delete, Header, Path, Route, Tags} from "tsoa";
+import {Delete, Header, OperationId, Path, Route, Tags} from "tsoa";
 import {BotNotFoundError, EmbedNotFoundError, ManageService, UnauthorizedError} from "../../services/ManageService";
 import {BaseController} from "../../models/BaseController";
 import {API_KEY_HEADER_NAME, CriaError, CriaResponse} from "../../models/CriaResponse";
@@ -9,6 +9,7 @@ interface DeleteResponse extends CriaResponse {
 
 @Tags("Manage")
 @Route("/manage/{botId}/delete")
+@OperationId("manageDeleteBot")
 export class DeleteController extends BaseController {
 
   constructor(

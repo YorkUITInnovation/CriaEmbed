@@ -1,4 +1,4 @@
-import {Get, Header, Path, Query, Route, Tags} from "tsoa";
+import {Get, Header, OperationId, Path, Query, Route, Tags} from "tsoa";
 import {BaseController} from "../../models/BaseController";
 import {EmbedService} from "../../services/EmbedService";
 import {API_KEY_HEADER_NAME, CriaResponse} from "../../models/CriaResponse";
@@ -19,6 +19,7 @@ export class SessionController extends BaseController {
   }
 
   @Get()
+  @OperationId("embedGetSession")
   public async getSessionData(
       @Path() botId: string,
       @Header(API_KEY_HEADER_NAME) apiKey: string,

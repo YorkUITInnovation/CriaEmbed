@@ -1,4 +1,4 @@
-import {Middlewares, Path, Post, Route, Tags} from "tsoa";
+import {Middlewares, OperationId, Path, Post, Route, Tags} from "tsoa";
 import {BaseController} from "../../models/BaseController";
 import {EmbedService} from "../../services/EmbedService";
 import {CreateChatResponse, CriaError, CriaResponse} from "../../models/CriaResponse";
@@ -17,6 +17,7 @@ export class ChatsCreateController extends BaseController {
 
   @Post()
   @Middlewares(...RATE_LIMIT_CHAT_ALL_HANDLERS)
+  @OperationId("chatCreate")
   public async create(
       // The PREVIOUS chat ID
       @Path("chatId") previousChatId: string,

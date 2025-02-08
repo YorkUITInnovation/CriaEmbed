@@ -1,6 +1,6 @@
 import React, {useState} from 'react';
 import 'regenerator-runtime/runtime';
-import {SendSVG} from "./ResetChat.jsx";
+import {ButtonSVG} from "./ResetChat.jsx";
 
 
 const SpeechAutoPlay = () => {
@@ -22,15 +22,15 @@ const SpeechAutoPlay = () => {
         </>
 
     return (
-        <SendSVG
+        <ButtonSVG
             onClick={() => {
                 const newStatus = !playing;
                 setPlaying(newStatus);
                 document.dispatchEvent(new CustomEvent("setAutoPlay", {detail: newStatus}))
             }}
-            style={{marginRight: "3px"}} fill="currentColor" aria-hidden="true" viewBox="0 0 480 480" xmlns="http://www.w3.org/2000/svg" >
+            style={{marginRight: "4px"}} fill="currentColor" aria-hidden="true" viewBox="0 0 480 480" xmlns="http://www.w3.org/2000/svg" >
             {playing ? audio : muted}
-        </SendSVG>
+        </ButtonSVG>
     );
 
 

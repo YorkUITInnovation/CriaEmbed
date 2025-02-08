@@ -1,4 +1,4 @@
-import {Get, Path, Query, Route, Tags} from "tsoa";
+import {Get, OperationId, Path, Query, Route, Tags} from "tsoa";
 import {BaseController} from "../../models/BaseController";
 import {EmbedService} from "../../services/EmbedService";
 import {ChatAudioResponse, CriaError} from "../../models/CriaResponse";
@@ -20,6 +20,7 @@ export class ChatSpeechController extends BaseController {
     }
 
     @Get()
+    @OperationId("chatGenerateSpeech")
     public async speech(
         @Path() chatId: string,
         @Query() messageId: string,

@@ -1,0 +1,1 @@
+// added so that IntelliJ recognizes the tailwindcss module
