@@ -63,6 +63,9 @@ export default function ({messageId, autoPlay = false, isGreeting}) {
     const [playing, setPlaying] = useState(autoPlay);
     const ref = useRef(null);
 
+    /*
+    Preload MUST be false to avoid pre-rendering Azure speech (which is expensive!!!)
+     */
     return (
         <div>
             <ReactHowler
@@ -71,6 +74,7 @@ export default function ({messageId, autoPlay = false, isGreeting}) {
                 onEnd={() => setPlaying(false)}
                 format={["webm"]}
                 ref={(_ref) => ref.current = _ref}
+                preload={false}
             />
             <SpeechContainer
                 onClick={() => {
