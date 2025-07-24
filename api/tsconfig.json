@@ -5,6 +5,7 @@
     "module": "ESNext",
     "useUnknownInCatchVariables": false,
     "outDir": "dist",
+    "skipLibCheck": true,
     "strict": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
