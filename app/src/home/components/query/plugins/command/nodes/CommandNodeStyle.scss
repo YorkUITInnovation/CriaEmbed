@@ -1,0 +1,39 @@
+
+.commandSubNode {
+  overflow: visible;
+  padding: 3px;
+  color: #f1f1f1;
+  border-radius: 5px;
+  background-color: var(--theme);
+}
+
+.commandSubNode[placeholder] {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.commandSubNode[placeholder]::after {
+  line-height: unset;
+  margin-left: 2px;
+  margin-top: -3px;
+  content: attr(placeholder);
+  color: #c4c4c4;
+  background-color: var(--theme);
+  padding: 3px;
+  border-radius: 0 5px 5px 0;
+  cursor: inherit;
+}
+
+
+.commandUnknown {
+
+}
+
+.commandUnknown[suggestion]::after {
+  content: attr(suggestion);
+  color: #cccccc;
+}
+
+.argSubNode {
+
+}

@@ -1,0 +1,8 @@
+
+[placeholder]::after {
+  top: 10px;
+  position: absolute;
+  content: attr(placeholder);
+  color: #696969;
+  pointer-events: none;
+}

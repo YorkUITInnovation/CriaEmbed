@@ -1,0 +1,114 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<!-- HEAD -->
+<head>
+
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automatic Response</title>
+
+    <!--[if mso]>
+    <style>
+        body, table, td, a {
+            font-family: Arial, Helvetica, sans-serif !important;
+        }
+    </style>
+    <![endif]-->
+
+    <style type="text/css">
+
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        .modalTable {
+            max-width: 600px;
+            border-collapse: collapse;
+            border: 0;
+            border-spacing: 0;
+        }
+
+        .containerTable {
+            width: 100%;
+            border-collapse: collapse;
+            border: 0;
+            border-spacing: 0;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        .modalContainer {
+            color: black !important;
+            padding: 10px 20px 20px 20px;
+            background-color: #f1f1f1;
+            border-radius: 10px;
+            min-width: 300px;
+            font-size: 1em;
+        }
+
+        .quoteText {
+            padding-left: 15px;
+            border-left: 2px solid #7a7a7a;
+            padding-top: 3px;
+            padding-bottom: 3px;
+            color: rgb(0, 0, 0) !important;
+        }
+
+        :root {
+            --theme-color: #007bff;
+        }
+
+        .automaticWarningContainer {
+            display: flex;
+            align-items: center;
+            font-size: 0.8em;
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+
+<table class="containerTable">
+    <tbody>
+    <tr>
+        <td
+                align="left"
+                style="
+                    padding: 1rem 1rem 1rem 0;
+                    vertical-align: top;
+                    width: 100%;"
+        >
+            <div>
+                <table class="modalTable">
+                    <tbody>
+                    <tr>
+                        <td>
+                            <div class="modalContainer">
+                                <p class="quoteText">
+                                    %message%
+                                </p>
+                                <div style="color: rgb(0, 0, 0); text-align: left;">
+                                    <p style="padding-bottom: 6px">%reply%</p>
+                                </div>
+                                <span class="automaticWarningContainer">
+                                *%warning%
+                               </span>
+                            </div>
+                        </td>
+                    </tr>
+
+                    </tbody>
+                </table>
+
+            </div>
+        </td>
+    </tr>
+    </tbody>
+</table>
+</body>
+
+</html>
