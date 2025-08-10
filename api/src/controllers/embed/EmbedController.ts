@@ -99,7 +99,7 @@ export class EmbedController extends BaseController {
       }
 
       const [embed, chatId] = await this.service.retrieveEmbed(
-          botId, hideLauncher, inlineLauncher
+          botId, hideLauncher, inlineLauncher, sessionData
       );
 
       if (sessionData && apiKey) {

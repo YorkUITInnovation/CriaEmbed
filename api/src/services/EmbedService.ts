@@ -219,11 +219,27 @@ export class EmbedService extends BaseService {
   async retrieveEmbed(
       botName: string,
       hideLauncher: boolean,
-      inlineLauncher: boolean
+      inlineLauncher: boolean,
+      sessionData?: Record<string, any>
   ): Promise<[string, string]> {
 
     const botConfig: IBotEmbed = await this.manageService.retrieveBot(botName, "", true);
-    const chatId: string = await this.createChat();
+
+    // Check if session data contains an existing chat ID
+    let chatId: string;
+    if (sessionData && sessionData.chatId && typeof sessionData.chatId === 'string') {
+      // Verify the chat ID exists before reusing it
+      const chatExists = await this.existsEmbedChat(sessionData.chatId);
+      if (chatExists) {
+        chatId = sessionData.chatId;
+      } else {
+        // Create new chat if the provided ID doesn't exist
+        chatId = await this.createChat();
+      }
+    } else {
+      // Create new chat if no session data or chat ID provided
+      chatId = await this.createChat();
+    }
 
     const popupConfig: EmbedPopupConfig = {
       // Chat needs
