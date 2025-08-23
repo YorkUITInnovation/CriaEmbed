@@ -38,10 +38,12 @@ export const OverrideContentsPlugin = () => {
     }
 
     function handleAddText(event) {
+        console.log("📝 OVERRIDE PLUGIN: handleAddText called", event.detail);
         simulateTyping(event.detail);
     }
 
     function handleReplaceText(event) {
+        console.log("📝 OVERRIDE PLUGIN: handleReplaceText called (WILL AUTO-SUBMIT)", event.detail);
         editor.update(() => {
             const root = $getRoot();
             root.clear();
@@ -49,14 +51,17 @@ export const OverrideContentsPlugin = () => {
         });
 
         editor.update(() => {
+            console.log("🚀 OVERRIDE PLUGIN: Calling dispatchChat (AUTO-SUBMIT)");
             dispatchChat(editor);
         })
     }
 
     useEffect(() => {
+        console.log("👂 OVERRIDE PLUGIN: Setting up event listeners");
         document.addEventListener("replaceEditorText", handleReplaceText);
         document.addEventListener("addEditorText", handleReplaceText);
         return () => {
+            console.log("🧹 OVERRIDE PLUGIN: Cleaning up event listeners");
             document.removeEventListener("addEditorText", handleReplaceText);
             document.removeEventListener("replaceEditorText", handleReplaceText);
         }
@@ -64,4 +69,3 @@ export const OverrideContentsPlugin = () => {
 
     return null;
 };
-

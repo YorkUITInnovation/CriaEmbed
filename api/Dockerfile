@@ -29,6 +29,8 @@ FROM        with_packages AS final
 #           PROJECT SOURCE CODE
 
 COPY        ./dist ./dist
+COPY --chown=cria:cria ./src/assets ./src/assets
+COPY --chown=cria:cria ./src/assets ./dist/src/assets
 
 #           START SERVER
 

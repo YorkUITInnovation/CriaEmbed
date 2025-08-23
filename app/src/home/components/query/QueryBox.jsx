@@ -2,7 +2,6 @@ import {Component} from "react";
 import {styled} from "styled-components";
 import {getTheme} from "../chat/ChatHeader.jsx";
 import QueryArea from "./QueryArea.jsx";
-import Dictaphone from "./buttons/Dictaphone.jsx";
 import {ResetChat} from "./buttons/ResetChat.jsx";
 import {SendMessage} from "./buttons/SendMessage.jsx";
 import SpeechAutoPlay from "./buttons/SpeechAutoPlay.jsx";
@@ -208,7 +207,6 @@ export default class QueryBox extends Component {
               </div>
               <div>
                 <SpeechAutoPlay/>
-                <Dictaphone/>
                 <SendMessage
                   id={this.#sendButtonId}
                   onClick={() => document.dispatchEvent(new CustomEvent("sendButtonClicked"))}

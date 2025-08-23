@@ -13,6 +13,32 @@
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet">
     <script type="module" src="src/index.jsx"></script>
     <title>Cria</title>
+
+    <!-- Debug script for speech recognition testing -->
+    <script>
+      // Debug script to trace speech recognition events
+      console.log("=== Speech Recognition Debug ===");
+
+      // Monitor all custom events being dispatched
+      const originalDispatchEvent = document.dispatchEvent;
+      document.dispatchEvent = function(event) {
+          if (event.type.includes('speech') || event.type.includes('chat') || event.type.includes('Editor') || event.type.includes('Text')) {
+              console.log(`🔥 Event dispatched: ${event.type}`, event.detail);
+          }
+          return originalDispatchEvent.call(this, event);
+      };
+
+      // Monitor all event listeners being added
+      const originalAddEventListener = document.addEventListener;
+      document.addEventListener = function(type, listener, options) {
+          if (type.includes('speech') || type.includes('chat') || type.includes('Editor') || type.includes('Text')) {
+              console.log(`👂 Event listener added: ${type}`);
+          }
+          return originalAddEventListener.call(this, type, listener, options);
+      };
+
+      console.log("Debug monitoring enabled. Use speech recognition and check console.");
+    </script>
   </head>
   <body>
 

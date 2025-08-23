@@ -8,7 +8,7 @@
     // Inject iframe
     const criaEmbed = document.createElement("iframe");
     criaEmbed.classList.add("cria-embed");
-    criaEmbed.allow = "clipboard-write; microphone; autoplay";
+    criaEmbed.allow = "clipboard-write; autoplay";
     criaEmbed.setAttribute("botId", "$botId");
     criaEmbed.setAttribute("height", "600");
     criaEmbed.setAttribute("width", "350");
