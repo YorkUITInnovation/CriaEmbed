@@ -2,7 +2,8 @@
   "compilerOptions": {
     "incremental": true,
     "target": "ESNext",
-    "module": "ESNext",
+    "module": "node16",
+    "isolatedModules": true,
     "useUnknownInCatchVariables": false,
     "outDir": "dist",
     "skipLibCheck": true,
@@ -17,7 +18,7 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "moduleResolution": "node",
+    "moduleResolution": "node16",
     "esModuleInterop": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
@@ -26,5 +27,5 @@
   "ts-node": {
     "esm": true,
     "experimentalSpecifierResolution": "node"
-  },
+  }
 }

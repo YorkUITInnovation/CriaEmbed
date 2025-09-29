@@ -1,3 +1,4 @@
+import {VectorStoreService} from "./VectorStoreService";
 import {BaseService} from "./BaseService";
 import {BotLocale, EmbedPosition, IBotEmbed} from "../database/mysql/controllers/BotEmbed";
 import {ManageService} from "./ManageService";
@@ -93,32 +94,40 @@ export interface ExtendedSendChatResponse extends SendChatResponse {
 }
 
 export class EmbedService extends BaseService {
-
-  constructor(
-      public readonly manageService: ManageService = new ManageService(),
-      public readonly messageCache: MessageCache = new MessageCache(),
-      public readonly trackingCache: TrackingCache = new TrackingCache()
-  ) {
-    super();
-  }
-
   async createChat(): Promise<string> {
-
     const response: AxiosResponse = await this.post(
-        this.buildServiceURL(
-            "cria_get_chat_id", {}
-        )
+      this.buildServiceURL(
+        "cria_get_chat_id", {}
+      )
     );
-
     const chatId: string = response.data;
-
     if (chatId) {
       return chatId;
     } else {
       throw new CriaError("Failed to receive a Chat ID!");
     }
-
   }
+
+  private vectorStore: VectorStoreService;
+
+    constructor(
+        public readonly manageService: ManageService = new ManageService(),
+        public readonly messageCache: MessageCache = new MessageCache(),
+        public readonly trackingCache: TrackingCache = new TrackingCache()
+    ) {
+      super();
+      this.vectorStore = new VectorStoreService();
+    }
+
+    // Upsert embedding to Elasticsearch
+    async upsertEmbedding(id: string, embedding: number[], metadata: Record<string, any>): Promise<void> {
+      await this.vectorStore.upsert(id, embedding, metadata);
+    }
+
+    // Search embeddings in Elasticsearch
+    async searchEmbeddings(queryEmbedding: number[], k: number = 10): Promise<any[]> {
+      return await this.vectorStore.search(queryEmbedding, k);
+    }
 
   private async sendChat(
       botName: string,

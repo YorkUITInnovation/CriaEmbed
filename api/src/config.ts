@@ -83,4 +83,4 @@ export function debugEnabled(): boolean {
   return process.env.DEBUG_ENABLED?.toLowerCase() === "true"
 }
 
-export const Config: Config = processConfig(process.env as Config);
+export const Config: Config = processConfig(process.env as unknown as Config);
