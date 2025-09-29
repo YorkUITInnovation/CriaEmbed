@@ -46,6 +46,16 @@ type Config = {
   AZURE_SPEECH_API_KEY: string,
   APP_MODE: "PRODUCTION" | "TESTING",
 
+  // Elasticsearch
+  ELASTICSEARCH_HOST: string,
+  ELASTICSEARCH_PORT: string,
+  ELASTICSEARCH_USERNAME: string,
+  ELASTICSEARCH_PASSWORD: string,
+  ELASTICSEARCH_INDEX: string,
+
+  // RAGFlow
+  RAGFLOW_EMBED_DIM: number,
+  RAGFLOW_INDEX_NAME: string,
 }
 
 
