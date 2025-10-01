@@ -31,3 +31,5 @@ process.env.APP_MODE = 'TESTING';
 process.env.ELASTICSEARCH_USERNAME = 'elastic';
 process.env.ELASTICSEARCH_PASSWORD = 'changeme';
 process.env.RAGFLOW_INDEX_NAME = 'test_ragflow_index';
+
+

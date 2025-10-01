@@ -14,4 +14,5 @@ module.exports = {
   moduleNameMapper: {
     '^(\.{1,2}/.*)\.js$': '$1',
   },
+  coverageDirectory: '<rootDir>/test/coverage',
 };
