@@ -1,66 +1,50 @@
-# name: CI
+name: CI
 
-# on:
-#   push:
-#     branches:
-#       - main
-#       - feature/criaembed-ragflow-elastic
+on: 
+  push:
+    branches:
+      - main
+      - feature/criaembed-ragflow-elastic
 
-# jobs:
-#   test:
-#     runs-on: ubuntu-latest
-#     services:
-#       elasticsearch:
-#         image: elasticsearch:8.19.1
-#         env:
-#           discovery.type: single-node
-#           ES_JAVA_OPTS: -Xms2048m -Xmx2048m
-#         ports:
-#           - "9200:9200"
-#         options: >-
-#           --health-cmd "curl -s http://localhost:9200/_cluster/health | jq -e '.status == \"green\" or .status == \"yellow\"' > /dev/null"
-#           --health-interval 10s
-#           --health-timeout 30s
-#           --health-retries 5
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      elasticsearch:
+        image: elasticsearch:8.19.1
+        env:
+          discovery.type: single-node
+          ES_JAVA_OPTS: -Xms2048m -Xmx2048m
+        ports:
+          - "9200:9200"
+        options: >-
+          --health-cmd "curl -s http://localhost:9200/_cluster/health | jq -e '.status == \"green\" or .status == \"yellow\"' > /dev/null"
+          --health-interval 10s
+          --health-timeout 30s
+          --health-retries 5
 
-#     steps:
-#     - name: Checkout code
-#       uses: actions/checkout@v4
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-#     - name: Set up Node.js
-#       uses: actions/setup-node@v4
-#       with:
-#         node-version: 20.x
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20.x
 
-#     - name: Install dependencies
-#       run: npm install
-#       working-directory: api
+    - name: Install dependencies
+      run: npm install
+      working-directory: api
 
-#     - name: Create .env file with required variables
-#       run: |
-#         cat <<EOF > api/.env
-#         ELASTICSEARCH_HOST=localhost
-#         ELASTICSEARCH_PORT=9200
-#         ELASTICSEARCH_INDEX=criaembed
-#         CRIA_BOT_SERVER_URL=http://mock-criabot-server
-#         CRIA_BOT_SERVER_TOKEN=mock-token
-#         THIS_APP_URL=http://mock-this-app
-#         WEB_APP_URL=http://mock-web-app
-#         DEFAULT_BOT_GREETING=Hello from mock bot!
-#         ASSETS_FOLDER_PATH=./src/assets/
-#         RAGFLOW_EMBED_DIM=768
-#         DEBUG_ENABLED=false
-#         EOF
+    - name: Wait for Elasticsearch
+      shell: bash
+      run: |
+        echo "Waiting for Elasticsearch..."
+        for i in {1..60}; do
+          if curl -sf http://127.0.0.1:9200/_cluster/health >/dev/null; then echo "Elasticsearch is ready"; break; fi; sleep 1; done
 
-#     - name: Wait for Elasticsearch
-#       shell: bash
-#       run: |
-#         echo "Waiting for Elasticsearch..."
-#         for i in {1..60}; do
-#           if curl -sf http://127.0.0.1:9200/_cluster/health >/dev/null; then echo "Elasticsearch is ready"; break; fi; sleep 1; done
-
-#     - name: Run tests
-#       run: npm run test
-#       working-directory: api
-#       env:
-#         NODE_OPTIONS: --experimental-vm-modules
+    - name: Run tests
+      run: npm run test
+      working-directory: api
+      env:
+        NODE_OPTIONS: --experimental-vm-modules

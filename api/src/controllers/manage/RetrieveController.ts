@@ -15,7 +15,8 @@ interface RetrieveResponse extends CriaResponse {
 export class RetrieveController extends BaseController {
 
     constructor(
-        public service: ManageService = new ManageService(),
+    pool: import('mysql2').Pool,
+    public service: ManageService = new ManageService(pool),
     ) {
         super();
     }

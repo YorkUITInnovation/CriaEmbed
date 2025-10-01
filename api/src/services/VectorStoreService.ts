@@ -77,4 +77,8 @@ export class VectorStoreService {
       // @ts-ignore
       return result.hits?.hits || [];
     }
+
+    async close(): Promise<void> {
+      await this.client.close();
+    }
 }

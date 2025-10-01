@@ -1,12 +1,16 @@
-import {createPool, Pool, PoolOptions} from "mysql2";
+import { createPool, Pool, PoolOptions } from "mysql2";
 import * as fs from "fs";
-import {Config} from "../../config";
 import path from "path";
 
-async function initializeDatabase(schema: string, config: PoolOptions): Promise<Pool> {
-
+/**
+ * Factory function to initialize and return a MySQL pool.
+ * This should be called explicitly in app code, not at module top-level.
+ * @param schema SQL schema string
+ * @param config PoolOptions
+ */
+export async function getMySQLPool(schema: string, config: PoolOptions): Promise<Pool> {
   // First connect
-  const initPoolConfig: PoolOptions = {...config};
+  const initPoolConfig: PoolOptions = { ...config };
   initPoolConfig["database"] = undefined;
   initPoolConfig["multipleStatements"] = true;
 
@@ -15,23 +19,6 @@ async function initializeDatabase(schema: string, config: PoolOptions): Promise<
 
   // Reconnect to created database
   return createPool(config).promise().pool;
-
 }
-
-
-export const MYSQL_POOL: Pool = await initializeDatabase(
-    fs.readFileSync(path.join(Config.ASSETS_FOLDER_PATH, '/schema.sql'))
-        .toString()
-        .replaceAll(/%database%/g, Config.MYSQL_DATABASE),
-    {
-      password: Config.MYSQL_PASSWORD,
-      port: parseInt(Config.MYSQL_PORT),
-      host: Config.MYSQL_HOST,
-      user: Config.MYSQL_USERNAME,
-      database: Config.MYSQL_DATABASE,
-      connectTimeout: 40_000,
-      idleTimeout: 120_000,
-    }
-);
 
 

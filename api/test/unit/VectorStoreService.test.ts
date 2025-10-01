@@ -1,43 +1,56 @@
+import { jest } from '@jest/globals';
 import { VectorStoreService } from '../../src/services/VectorStoreService';
-import { Client } from '@elastic/elasticsearch';
+
+// Mock Redis globally
+jest.mock('ioredis', () => {
+  return jest.fn().mockImplementation(() => ({
+    on: jest.fn(),
+    get: jest.fn(),
+    set: jest.fn(),
+    quit: jest.fn(),
+    disconnect: jest.fn(),
+  }));
+});
 
 // Mock the Elasticsearch client
-jest.mock('@elastic/elasticsearch', () => ({
-  Client: jest.fn(() => ({
+jest.mock('@elastic/elasticsearch', () => {
+  // All methods are Jest mock functions
+  const mockClient = {
     indices: {
-      exists: jest.fn() as jest.Mock,
-      create: jest.fn() as jest.Mock,
+      exists: jest.fn(),
+      create: jest.fn(),
     },
-    index: jest.fn() as jest.Mock,
-    search: jest.fn() as jest.Mock,
-  })),
-}));
+    index: jest.fn(),
+    search: jest.fn(),
+  };
+  return {
+    Client: jest.fn(() => mockClient),
+    __esModule: true,
+  };
+});
 
 describe('VectorStoreService', () => {
   let service: VectorStoreService;
   let mockClient: {
     indices: {
-      exists: jest.Mock;
-      create: jest.Mock;
+      exists: jest.Mock<any>;
+      create: jest.Mock<any>;
     };
-    index: jest.Mock;
-    search: jest.Mock;
+    index: jest.Mock<any>;
+    search: jest.Mock<any>;
   };
+  let MockedClient: jest.Mock<any>;
 
   beforeEach(() => {
-    // Reset mocks before each test
     jest.clearAllMocks();
-    // Re-initialize the service for each test
     service = new VectorStoreService();
-    // Explicitly cast the nested properties to Jest mock functions
-    mockClient = {
-      indices: {
-        exists: (service as any).client.indices.exists as jest.Mock,
-        create: (service as any).client.indices.create as jest.Mock,
-      },
-      index: (service as any).client.index as jest.Mock,
-      search: (service as any).client.search as jest.Mock,
-    };
+    mockClient = (service as any).client;
+    MockedClient = jest.requireMock('@elastic/elasticsearch').Client;
+    // Explicitly assign jest.fn() to all mock methods
+    mockClient.indices.exists = jest.fn();
+    mockClient.indices.create = jest.fn();
+    mockClient.index = jest.fn();
+    mockClient.search = jest.fn();
   });
 
   it('should be defined', () => {
@@ -45,10 +58,13 @@ describe('VectorStoreService', () => {
   });
 
   it('should initialize the Elasticsearch client with correct config', () => {
-    expect(Client).toHaveBeenCalledTimes(1);
-    expect(Client).toHaveBeenCalledWith({
+    expect(MockedClient).toHaveBeenCalledTimes(1);
+    expect(MockedClient).toHaveBeenCalledWith({
       node: `http://localhost:9200`,
-      auth: undefined, // Assuming no auth for test environment
+      auth: {
+        username: process.env.ELASTICSEARCH_USERNAME,
+        password: process.env.ELASTICSEARCH_PASSWORD,
+      },
     });
     expect((service as any).index).toBe('test_criaembed');
   });
@@ -80,7 +96,7 @@ describe('VectorStoreService', () => {
         index: (service as any).index,
         mappings: {
           properties: {
-            embedding: { type: "dense_vector", dims: 768 },
+            embedding: { type: "dense_vector", dims: "768" },
             metadata: { type: "object" }
           }
         }

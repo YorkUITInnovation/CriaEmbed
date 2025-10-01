@@ -12,7 +12,8 @@ interface DeleteResponse extends CriaResponse {
 export class DeleteController extends BaseController {
 
   constructor(
-      public service: ManageService = new ManageService()
+      pool: import('mysql2').Pool,
+      public service: ManageService = new ManageService(pool)
   ) {
     super();
   }

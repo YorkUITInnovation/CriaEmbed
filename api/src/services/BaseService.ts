@@ -1,4 +1,3 @@
-import {MYSQL_POOL} from "../database/mysql/mysql";
 import {Pool} from "mysql2";
 import {Config} from "../config";
 import axios, {AxiosRequestConfig, AxiosResponse} from "axios";
@@ -6,10 +5,10 @@ import axios, {AxiosRequestConfig, AxiosResponse} from "axios";
 export abstract class BaseService {
 
     protected mySqlPool: Pool;
-    private criaWebServiceBaseUrl: string = `${Config.CRIA_SERVER_URL}/webservice/rest/server.php`
+    private criaWebServiceBaseUrl: string = `${Config.CRIA_SERVER_URL}/webservice/rest/server.php`;
 
-    protected constructor() {
-        this.mySqlPool = MYSQL_POOL;
+    protected constructor(pool: Pool) {
+        this.mySqlPool = pool;
     }
 
     protected buildServiceURL(wsFunction: string, wsParams?: { [key: string]: string }) {

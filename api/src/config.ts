@@ -1,12 +1,15 @@
 import {config} from "dotenv";
 
-const output = config({path: process.env.ENV_PATH || "./.env"});
+// Only load .env if not in testing mode
+if (process.env.APP_MODE !== "TESTING") {
+  const output = config({path: process.env.ENV_PATH || "./.env"});
 
-if (output.error) {
-  if (output.error.message.includes("EACCES")) {
-    console.log("[ENV LOAD FAIL] No .env permission to read in the volume. chmod 644 /path/to/.env on host container.")
-  } else {
-    console.error("FAILED TO LOAD .ENV", output.error);
+  if (output.error) {
+    if (output.error.message.includes("EACCES")) {
+      console.log("[ENV LOAD FAIL] No .env permission to read in the volume. chmod 644 /path/to/.env on host container.")
+    } else {
+      console.error("FAILED TO LOAD .ENV", output.error);
+    }
   }
 }
 
@@ -73,7 +76,6 @@ function processConfig(config: Config): Config {
   config.RATE_LIMIT_EMBED_DAY_MAX ||= "1";
   config.RATE_LIMIT_CHAT_MINUTE_MAX ||= "1";
   config.RATE_LIMIT_CHAT_HOUR_MAX ||= "1";
-  config.RATE_LIMIT_EMBED_MINUTE_MAX ||= "1";
   config.RATE_LIMIT_CHAT_DAY_MAX ||= "1";
 
   return config;

@@ -26,35 +26,32 @@ export class ManageService extends BaseService {
 
   private db: BotEmbed;
 
-  constructor() {
-    super();
-    this.db = new BotEmbed(this.mySqlPool);
+  constructor(pool: import('mysql2').Pool) {
+    super(pool);
+    this.db = new BotEmbed(pool);
   }
 
   public async botExistsAndIsAuthorized(botName: string, apiKey: string): Promise<true> {
-    const params: CriaBotExistsFunctionParams = {bot_id: botName, bot_api_key: apiKey};
 
-    const response: AxiosResponse = await this.get(
-        this.buildServiceURL(
-            "cria_bot_exists", params
-        )
+    const botExistsResponse: AxiosResponse = await this.get(
+        `${Config.CRIA_BOT_SERVER_URL}/groups/${botName}/about`,
+        { headers: { 'x-api-key': Config.CRIA_BOT_SERVER_TOKEN } }
     );
 
-    response.data = parseInt(response.data);
-
-    switch (response.data) {
-      case 404:
-        throw new BotNotFoundError();
-      case 401:
-        throw new UnauthorizedError();
-      case 200:
-        return true;
-      default:
-        throw new CriaError(
-            `Received unexpected response from 'cria_bot_exists' function: '${JSON.stringify(response.data)}'.`
-        );
+    if (botExistsResponse.status === 404) {
+      throw new BotNotFoundError();
     }
 
+    const authCheckResponse: AxiosResponse = await this.get(
+        `${Config.CRIA_BOT_SERVER_URL}/auth/${apiKey}/check`,
+        { headers: { 'x-api-key': Config.CRIA_BOT_SERVER_TOKEN } }
+    );
+
+    if (authCheckResponse.data.authorized === false) {
+      throw new UnauthorizedError();
+    }
+
+    return true;
   }
 
   async existsBot(botName: string): Promise<boolean> {
