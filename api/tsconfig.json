@@ -2,7 +2,7 @@
   "compilerOptions": {
     "incremental": true,
     "target": "ESNext",
-    "module": "CommonJS",
+    "module": "Node16",
     "isolatedModules": true,
     "useUnknownInCatchVariables": false,
     "outDir": "dist",

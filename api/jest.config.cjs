@@ -3,16 +3,17 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
-  globals: {
-    'ts-jest': {
-      tsconfig: 'tsconfig.json',
-    },
-  },
   transform: {
-    '^.+\.ts$': 'ts-jest',
+    '^.+\\.ts$': [
+      'ts-jest',
+      {
+        tsconfig: 'tsconfig.test.json',
+      },
+    ],
   },
   moduleNameMapper: {
     '^(\.{1,2}/.*)\.js$': '$1',
   },
   coverageDirectory: '<rootDir>/test/coverage',
+  testPathIgnorePatterns: ['/node_modules/', '/dist/'],
 };
