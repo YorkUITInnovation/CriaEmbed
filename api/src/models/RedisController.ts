@@ -1,10 +1,10 @@
 import Redis from "ioredis";
-import {REDIS_POOL} from "../database/redis/redis";
+import {REDIS_POOL} from "../database/redis/redis.js";
 
 export class RedisController {
 
     constructor(
-        protected redis: Redis = REDIS_POOL
+        public redis: Redis = REDIS_POOL
     ) {
     }
 }

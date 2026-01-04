@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "@types/node": "^24.5.2",
+    "dotenv": "^17.2.2"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0"
+  }
+}

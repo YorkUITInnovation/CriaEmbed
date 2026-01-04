@@ -15,7 +15,8 @@ interface InsertResponse extends CriaResponse {
 export class InsertController extends BaseController {
 
   constructor(
-      public service: ManageService = new ManageService(),
+      pool: import('mysql2').Pool,
+      public service: ManageService = new ManageService(pool),
   ) {
     super();
   }

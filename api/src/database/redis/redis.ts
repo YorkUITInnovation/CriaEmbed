@@ -7,7 +7,6 @@ export const REDIS_POOL: Redis = new Redis({
     username: Config.REDIS_USERNAME,
     password: Config.REDIS_PASSWORD,
     connectTimeout: 40_000,
-    socketTimeout: 40_000,
     commandTimeout: 40_000
 });
 

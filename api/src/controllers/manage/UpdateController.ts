@@ -15,7 +15,8 @@ interface UpdateResponse extends CriaResponse {
 export class UpdateController extends BaseController {
 
     constructor(
-        public service: ManageService = new ManageService(),
+    pool: import('mysql2').Pool,
+    public service: ManageService = new ManageService(pool),
     ) {
         super();
     }

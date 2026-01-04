@@ -13,6 +13,36 @@ interface EmbedBody {
 
 @Route("/embed/{botId}/load")
 export class EmbedController extends BaseController {
+  /**
+   * Upsert an embedding into Elasticsearch
+   */
+  @Post("/embedding/upsert")
+  @Tags("Embed")
+  public async upsertEmbedding(
+    @Body() body: { id: string, embedding: number[], metadata: Record<string, any> }
+  ): Promise<CriaResponse> {
+    await this.service.upsertEmbedding(body.id, body.embedding, body.metadata);
+    this.setStatus(200);
+    return {
+      status: 200,
+      timestamp: Date.now().toString(),
+      code: "SUCCESS",
+      message: "Embedding upserted successfully"
+    };
+  }
+
+  /**
+   * Semantic search for embeddings in Elasticsearch
+   */
+  @Post("/embedding/search")
+  @Tags("Embed")
+  public async searchEmbeddings(
+    @Body() body: { queryEmbedding: number[], k?: number }
+  ): Promise<{ results: any[] }> {
+    const results = await this.service.searchEmbeddings(body.queryEmbedding, body.k || 10);
+    this.setStatus(200);
+    return { results };
+  }
 
   constructor(
       public service: EmbedService = new EmbedService()

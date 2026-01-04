@@ -1,3 +1,5 @@
+import { randomUUID } from 'crypto';
+import {VectorStoreService} from "./VectorStoreService";
 import {BaseService} from "./BaseService";
 import {BotLocale, EmbedPosition, IBotEmbed} from "../database/mysql/controllers/BotEmbed";
 import {ManageService} from "./ManageService";
@@ -93,58 +95,48 @@ export interface ExtendedSendChatResponse extends SendChatResponse {
 }
 
 export class EmbedService extends BaseService {
-
-  constructor(
-      public readonly manageService: ManageService = new ManageService(),
-      public readonly messageCache: MessageCache = new MessageCache(),
-      public readonly trackingCache: TrackingCache = new TrackingCache()
-  ) {
-    super();
+  async createChat(): Promise<string> {
+    return randomUUID();
   }
 
-  async createChat(): Promise<string> {
+  private vectorStore: VectorStoreService;
 
-    const response: AxiosResponse = await this.post(
-        this.buildServiceURL(
-            "cria_get_chat_id", {}
-        )
-    );
-
-    const chatId: string = response.data;
-
-    if (chatId) {
-      return chatId;
-    } else {
-      throw new CriaError("Failed to receive a Chat ID!");
+    constructor(
+        public readonly manageService: ManageService = new ManageService(),
+        public readonly messageCache: MessageCache = new MessageCache(),
+        public readonly trackingCache: TrackingCache = new TrackingCache()
+    ) {
+      super();
+      this.vectorStore = new VectorStoreService();
     }
 
-  }
+    // Upsert embedding to Elasticsearch
+    async upsertEmbedding(id: string, embedding: number[], metadata: Record<string, any>): Promise<void> {
+      await this.vectorStore.upsert(id, embedding, metadata);
+    }
+
+    // Search embeddings in Elasticsearch
+    async searchEmbeddings(queryEmbedding: number[], k: number = 10): Promise<any[]> {
+      return await this.vectorStore.search(queryEmbedding, k);
+    }
 
   private async sendChat(
       botName: string,
       chatId: string,
       prompt: string,
+      history: any[]
   ): Promise<CriaGetGPTResponseFunctionResponse> {
 
-    const functionParams: CriaGetGPTResponseFunctionParams = {
-      bot_id: botName,
-      chat_id: chatId,
-      prompt: prompt,
-      filters: "" // Never any filters
-    }
+    const botConfig: IBotEmbed = await this.manageService.retrieveBot(botName, "", true);
+    const modelId = botConfig.id;
 
     const response: AxiosResponse = await this.post(
-        this.buildServiceURL(
-            "cria_get_gpt_response", functionParams
-        )
-    )
-
-    if (response.data['criabot_response']) {
-      response.data['criabot_response'] = JSON.parse(response.data['criabot_response']);
-    }
+        `${Config.CRIA_BOT_SERVER_URL}/models/ragflow/${modelId}/agents/chat`,
+        { history: history },
+        { headers: { 'x-api-key': Config.CRIA_BOT_SERVER_TOKEN } }
+    );
 
     return response.data as CriaGetGPTResponseFunctionResponse;
-
   }
 
   async retrieveEmbedConfig(
@@ -253,31 +245,7 @@ export class EmbedService extends BaseService {
   }
 
 
-  async existsEmbedChat(chatId: string): Promise<boolean> {
-
-    const response: AxiosResponse = await this.get(
-        Config.CRIA_BOT_SERVER_URL + `/bots/chats/${chatId}/exists?x-api-key=${Config.CRIA_BOT_SERVER_TOKEN}`
-    )
-
-    if (response.data.code !== "SUCCESS") {
-      throw new CriaError(
-          "Error: " +
-          (JSON.stringify(response.data))
-      )
-    }
-
-    const exists: boolean | null | undefined = response.data.exists;
-
-    if (exists === null || exists === undefined) {
-      throw new CriaError(
-          "Error: Response shows undefined exists. Payload read error?"
-      )
-    }
-
-    return exists;
-
-
-  }
+  
 
   async sendEmbedChat(
       botName: string,
@@ -286,7 +254,8 @@ export class EmbedService extends BaseService {
       fullResponse: boolean = false
   ): Promise<SendChatResponse | ExtendedSendChatResponse> {
 
-    const apiResponse: CriaGetGPTResponseFunctionResponse = await this.sendChat(botName, chatId, prompt);
+    const history = [{ "role": "user", "content": prompt }];
+    const apiResponse: CriaGetGPTResponseFunctionResponse = await this.sendChat(botName, chatId, prompt, history);
     const criaBotResponse = apiResponse.criabot_response;
 
     // Confirm not null
