@@ -28,11 +28,31 @@ export class EmbedChatController extends BaseController {
         @Body() config: ChatPayload,
     ): Promise<SendChatResponse> {
 
+        // Basic input validation to avoid malformed or abusive requests
+        if (!botId || botId.trim().length === 0) {
+            throw new CriaError("Invalid botId provided.");
+        }
+
+        if (!config?.chatId || config.chatId.trim().length === 0) {
+            throw new CriaError("chatId is required.");
+        }
+
+        const prompt: string = config?.prompt ?? "";
+        if (prompt.trim().length === 0) {
+            throw new CriaError("prompt must not be empty.");
+        }
+
+        // Protect against excessively large prompts
+        const MAX_PROMPT_LENGTH = 4000;
+        if (prompt.length > MAX_PROMPT_LENGTH) {
+            throw new CriaError(`prompt exceeds maximum length of ${MAX_PROMPT_LENGTH} characters.`);
+        }
+
         try {
             const chat: SendChatResponse = await this.service.sendEmbedChat(
                 botId,
                 config.chatId,
-                config.prompt
+                prompt
             )
             this.setStatus(200);
             return chat;

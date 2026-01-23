@@ -28,9 +28,19 @@ export abstract class BaseService {
     }
 
     private handleConfig(config?: AxiosRequestConfig): AxiosRequestConfig {
-        config = config || {};
-        config["validateStatus"] = () => true;
-        return config
+        const baseConfig: AxiosRequestConfig = config ? {...config} : {};
+
+        // Default timeout if not provided
+        if (baseConfig.timeout === undefined) {
+            baseConfig.timeout = 30000; // 30 seconds
+        }
+
+        // Only treat 2xx responses as success unless caller overrides
+        if (!baseConfig.validateStatus) {
+            baseConfig.validateStatus = (status: number) => status >= 200 && status < 300;
+        }
+
+        return baseConfig;
     }
 
     protected async post(url: string, data?: object, config?: AxiosRequestConfig): Promise<AxiosResponse> {

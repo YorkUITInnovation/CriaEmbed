@@ -130,13 +130,23 @@ export class EmbedService extends BaseService {
     const botConfig: IBotEmbed = await this.manageService.retrieveBot(botName, "", true);
     const modelId = botConfig.id;
 
-    const response: AxiosResponse = await this.post(
-        `${Config.CRIA_BOT_SERVER_URL}/models/ragflow/${modelId}/agents/chat`,
-        { history: history },
-        { headers: { 'x-api-key': Config.CRIA_BOT_SERVER_TOKEN } }
-    );
+    try {
+      const response: AxiosResponse = await this.post(
+          `${Config.CRIA_BOT_SERVER_URL}/models/ragflow/${modelId}/agents/chat`,
+          { history: history },
+          { headers: { 'x-api-key': Config.CRIA_BOT_SERVER_TOKEN } }
+      );
 
-    return response.data as CriaGetGPTResponseFunctionResponse;
+      return response.data as CriaGetGPTResponseFunctionResponse;
+    } catch (error: any) {
+      // Normalise network / HTTP errors into a CriaError so callers can handle gracefully
+      const message =
+          error?.response?.status
+              ? `Criabot service returned HTTP ${error.response.status}`
+              : 'Criabot service is temporarily unavailable. Please try again later.';
+
+      throw new CriaError(message);
+    }
   }
 
   async retrieveEmbedConfig(
