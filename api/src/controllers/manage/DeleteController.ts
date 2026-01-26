@@ -1,7 +1,7 @@
 import {Delete, Header, Path, Route, Tags} from "tsoa";
-import {BotNotFoundError, EmbedNotFoundError, ManageService, UnauthorizedError} from "../../services/ManageService";
-import {BaseController} from "../../models/BaseController";
-import {API_KEY_HEADER_NAME, CriaError, CriaResponse} from "../../models/CriaResponse";
+import {BotNotFoundError, EmbedNotFoundError, ManageService, UnauthorizedError} from "../../services/ManageService.js";
+import {BaseController} from "../../models/BaseController.js";
+import {API_KEY_HEADER_NAME, CriaError, CriaResponse} from "../../models/CriaResponse.js";
 
 interface DeleteResponse extends CriaResponse {
   botName?: string;
@@ -12,7 +12,7 @@ interface DeleteResponse extends CriaResponse {
 export class DeleteController extends BaseController {
 
   constructor(
-      pool: import('mysql2').Pool,
+      pool?: import('mysql2').Pool,
       public service: ManageService = new ManageService(pool)
   ) {
     super();

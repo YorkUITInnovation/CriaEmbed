@@ -1,7 +1,7 @@
 // VectorStoreService.ts
 // Service for Elasticsearch/RAGFlow integration in CriaEmbed
 
-import {Config} from "../config";
+import {Config} from "../config.js";
 import {Client} from "@elastic/elasticsearch";
 
 export class VectorStoreService {

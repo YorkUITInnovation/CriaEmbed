@@ -1,9 +1,9 @@
-import {BaseService} from "./BaseService";
+import {BaseService} from "./BaseService.js";
 import {ActivityHandler, TurnContext} from "botbuilder";
-import {EmbedService} from "./EmbedService";
-import {createCloudAdapter, getActivityHandler, MissingAzureAuthenticationError} from "./azureBots/tools";
+import {EmbedService} from "./EmbedService.js";
+import {createCloudAdapter, getActivityHandler, MissingAzureAuthenticationError} from "./azureBots/tools.js";
 import e from "express";
-import AzureChatCache from "../database/redis/controllers/AzureChatCache";
+import AzureChatCache from "../database/redis/controllers/AzureChatCache.js";
 
 
 export class AzureService extends BaseService {

@@ -1,9 +1,9 @@
 import {Body, Middlewares, Path, Post, Route, Tags} from "tsoa";
-import {EmbedNotFoundError} from "../../services/ManageService";
-import {BaseController} from "../../models/BaseController";
-import {EmbedService} from "../../services/EmbedService";
-import {CriaError, CriaResponse, SendChatResponse} from "../../models/CriaResponse";
-import {RATE_LIMIT_CHAT_ALL_HANDLERS} from "../../models/LimitGenerator";
+import {EmbedNotFoundError} from "../../services/ManageService.js";
+import {BaseController} from "../../models/BaseController.js";
+import {EmbedService} from "../../services/EmbedService.js";
+import {CriaError, CriaResponse, SendChatResponse} from "../../models/CriaResponse.js";
+import {RATE_LIMIT_CHAT_ALL_HANDLERS} from "../../models/LimitGenerator.js";
 
 type ChatPayload = {
     chatId: string,

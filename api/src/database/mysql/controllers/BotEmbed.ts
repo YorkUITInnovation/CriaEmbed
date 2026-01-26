@@ -1,7 +1,7 @@
 import {ResultSetHeader, RowDataPacket} from "mysql2"
-import {MySQLController} from "../../../models/MySQLController";
-import {CriabotChatResponseRelatedPrompt} from "../../../services/EmbedService";
-import {debugEnabled} from "../../../config";
+import {MySQLController} from "../../../models/MySQLController.js";
+import {CriabotChatResponseRelatedPrompt} from "../../../services/EmbedService.js";
+import {debugEnabled} from "../../../config.js";
 
 export enum EmbedPosition {
   BL = 1,
@@ -49,7 +49,11 @@ export interface IBotEmbedPacket extends IBotEmbed, RowDataPacket {
 
 export class BotEmbed extends MySQLController {
 
-  private postProcessRes(res: Record<string, any>): IBotEmbed | undefined {
+  constructor(pool: import('mysql2').Pool) {
+    super(pool);
+  }
+
+  private postProcessRes(res: Record<string, any> | undefined): IBotEmbed | undefined {
 
     if (res === undefined) {
       return undefined;
@@ -73,7 +77,7 @@ export class BotEmbed extends MySQLController {
       this.pool.query<IBotEmbedPacket[]>(
           "SELECT * FROM `EmbedBot` WHERE `id`=?",
           [botId],
-          (err, res) => {
+          (err: Error | null, res?: IBotEmbedPacket[]) => {
             if (err) reject(err)
             else resolve(this.postProcessRes(res?.[0]))
           }
@@ -86,7 +90,7 @@ export class BotEmbed extends MySQLController {
       this.pool.query<IBotEmbedPacket[]>(
           "SELECT * FROM `EmbedBot` WHERE `botName`=?",
           [botName],
-          (err, res) => {
+          (err: Error | null, res?: IBotEmbedPacket[]) => {
             if (err) reject(err)
             else resolve(this.postProcessRes(res?.[0]))
           }
@@ -99,7 +103,7 @@ export class BotEmbed extends MySQLController {
       this.pool.query<IBotEmbedPacket[]>(
           "SELECT * FROM `EmbedBot` WHERE `microsoftAppId`=?",
           [appId],
-          (err, res) => {
+          (err: Error | null, res?: IBotEmbedPacket[]) => {
             if (err) reject(err)
             else resolve(this.postProcessRes(res?.[0]))
           }
@@ -138,7 +142,7 @@ export class BotEmbed extends MySQLController {
             bot.embedHoverTooltip,
             bot.botContact
           ],
-          async (err, res: ResultSetHeader) => {
+          async (err: Error | null, res?: ResultSetHeader) => {
             if (err || !res) {
               reject(err)
             } else {
@@ -207,7 +211,7 @@ export class BotEmbed extends MySQLController {
             // Identifier
             bot.botName
           ],
-          (err, _) => {
+          (err: Error | null, _?: ResultSetHeader) => {
             if (err) reject(err)
             else
               this.retrieveByName(bot.botName)
@@ -223,9 +227,9 @@ export class BotEmbed extends MySQLController {
       this.pool.query<ResultSetHeader>(
           "DELETE FROM `EmbedBot` WHERE botName=?",
           [botName],
-          (err, res: ResultSetHeader) => {
+          (err: Error | null, res?: ResultSetHeader) => {
             if (err) reject(err)
-            else resolve(res.affectedRows)
+            else resolve(res!.affectedRows)
           }
       )
     })
@@ -236,9 +240,9 @@ export class BotEmbed extends MySQLController {
       this.pool.query<ResultSetHeader[]>(
           "SELECT 1 FROM `EmbedBot` WHERE botName=?",
           [botName],
-          (err, res: ResultSetHeader[]) => {
+          (err: Error | null, res?: ResultSetHeader[]) => {
             if (err) reject(err)
-            else resolve(res.length > 0)
+            else resolve((res?.length ?? 0) > 0)
           }
       )
     })

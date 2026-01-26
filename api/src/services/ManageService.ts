@@ -1,8 +1,8 @@
-import {BaseService} from "./BaseService";
-import {BotEmbed, IBotEmbed, IBotEmbedConfig} from "../database/mysql/controllers/BotEmbed";
-import {CriaError} from "../models/CriaResponse";
+import {BaseService} from "./BaseService.js";
+import {BotEmbed, IBotEmbed, IBotEmbedConfig} from "../database/mysql/controllers/BotEmbed.js";
+import {CriaError} from "../models/CriaResponse.js";
 import {AxiosResponse} from "axios";
-import {Config as GlobalConfig} from "../config";
+import {Config as GlobalConfig} from "../config.js";
 
 
 export class DuplicateEmbedError extends Error {
@@ -25,12 +25,14 @@ export type CriaBotExistsFunctionParams = {
 // Q33BRKoVYQKNGZNNbDEm14i90ZLDyL3hJsWnTIRoqPE
 
 export class ManageService extends BaseService {
-  private db: BotEmbed;
+  private db?: BotEmbed;
   private config: typeof GlobalConfig;
 
-  constructor(pool: import('mysql2').Pool, config?: typeof GlobalConfig) {
+  constructor(pool?: import('mysql2').Pool, config?: typeof GlobalConfig) {
     super(pool);
-    this.db = new BotEmbed(pool);
+    if (pool) {
+      this.db = new BotEmbed(pool);
+    }
     this.config = config || GlobalConfig;
   }
 
@@ -57,11 +59,13 @@ export class ManageService extends BaseService {
   }
 
   async existsBot(botName: string): Promise<boolean> {
+    if (!this.db) throw new Error("Database not initialized");
     const result: IBotEmbed | undefined = await this.db.retrieveByName(botName);
     return !!result;
   }
 
   async retrieveBot(name: string, apiKey: string, skipAuth: boolean = false): Promise<IBotEmbed> {
+    if (!this.db) throw new Error("Database not initialized");
     if (!skipAuth) {
       await this.botExistsAndIsAuthorized(name, apiKey);
     }
@@ -73,6 +77,7 @@ export class ManageService extends BaseService {
   }
 
   async retrieveBotByMicrosoftAppId(microsoftAppId: string): Promise<IBotEmbed> {
+    if (!this.db) throw new Error("Database not initialized");
     let result: IBotEmbed | undefined;
     try {
       result = await this.db.retrieveByAppId(microsoftAppId);
@@ -86,6 +91,7 @@ export class ManageService extends BaseService {
   }
 
   async insertBot(config: IBotEmbedConfig, apiKey: string): Promise<IBotEmbed> {
+    if (!this.db) throw new Error("Database not initialized");
     await this.botExistsAndIsAuthorized(config.botName, apiKey);
     if (await this.db.existsByName(config.botName)) {
       throw new DuplicateEmbedError();
@@ -94,6 +100,7 @@ export class ManageService extends BaseService {
   }
 
   async deleteBot(botName: string, apiKey: string): Promise<number> {
+    if (!this.db) throw new Error("Database not initialized");
     await this.botExistsAndIsAuthorized(botName, apiKey);
     if (!await this.db.existsByName(botName)) {
       throw new EmbedNotFoundError();
@@ -102,6 +109,7 @@ export class ManageService extends BaseService {
   }
 
   async updateBot(config: IBotEmbedConfig, apiKey: string): Promise<IBotEmbed> {
+    if (!this.db) throw new Error("Database not initialized");
     await this.botExistsAndIsAuthorized(config.botName, apiKey);
     const result: IBotEmbed | undefined = await this.db.update(config);
     if (!result) {

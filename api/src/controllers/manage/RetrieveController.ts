@@ -1,10 +1,10 @@
 import {Get, Header, Path, Route, Tags} from "tsoa";
-import {BotNotFoundError, EmbedNotFoundError, ManageService, UnauthorizedError} from "../../services/ManageService";
-import {BaseController} from "../../models/BaseController";
+import {BotNotFoundError, EmbedNotFoundError, ManageService, UnauthorizedError} from "../../services/ManageService.js";
+import {BaseController} from "../../models/BaseController.js";
 
-import {IBotEmbed} from "../../database/mysql/controllers/BotEmbed";
-import {API_KEY_HEADER_NAME, CriaError, CriaResponse} from "../../models/CriaResponse";
-import {debugEnabled} from "../../config";
+import {IBotEmbed} from "../../database/mysql/controllers/BotEmbed.js";
+import {API_KEY_HEADER_NAME, CriaError, CriaResponse} from "../../models/CriaResponse.js";
+import {debugEnabled} from "../../config.js";
 
 interface RetrieveResponse extends CriaResponse {
     config?: IBotEmbed
@@ -15,7 +15,7 @@ interface RetrieveResponse extends CriaResponse {
 export class RetrieveController extends BaseController {
 
     constructor(
-    pool: import('mysql2').Pool,
+    pool?: import('mysql2').Pool,
     public service: ManageService = new ManageService(pool),
     ) {
         super();

@@ -1,8 +1,8 @@
 import {Get, Path, Query, Route, Tags} from "tsoa";
-import {EmbedNotFoundError} from "../../services/ManageService";
-import {BaseController} from "../../models/BaseController";
-import {EmbedPublicConfig, EmbedService} from "../../services/EmbedService";
-import {CriaError, CriaResponse, EmbedConfigResponse} from "../../models/CriaResponse";
+import {EmbedNotFoundError} from "../../services/ManageService.js";
+import {BaseController} from "../../models/BaseController.js";
+import {EmbedPublicConfig, EmbedService} from "../../services/EmbedService.js";
+import {CriaError, CriaResponse, EmbedConfigResponse} from "../../models/CriaResponse.js";
 
 @Tags("Embed")
 @Route("/embed/{botId}/config")

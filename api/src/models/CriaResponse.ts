@@ -1,4 +1,4 @@
-import {CriabotChatResponseRelatedPrompt, EmbedPublicConfig} from "../services/EmbedService";
+import {CriabotChatResponseRelatedPrompt, EmbedPublicConfig} from "../services/EmbedService.js";
 
 export type CriaResponseStatus = 200 | 400 | 300 | 401 | 500 | 301 | 302 | 409 | 403 | 405 | 429 | 404 | 422;
 export type CriaResponseCode =

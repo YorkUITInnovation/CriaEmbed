@@ -1,9 +1,9 @@
 import {Body, Middlewares, Post, Request, Route, Tags} from "tsoa";
-import {BaseController} from "../../models/BaseController";
-import {EmbedService} from "../../services/EmbedService";
-import {RATE_LIMIT_CHAT_ALL_HANDLERS} from "../../models/LimitGenerator";
+import {BaseController} from "../../models/BaseController.js";
+import {EmbedService} from "../../services/EmbedService.js";
+import {RATE_LIMIT_CHAT_ALL_HANDLERS} from "../../models/LimitGenerator.js";
 import e from "express";
-import {AzureService} from "../../services/AzureService";
+import {AzureService} from "../../services/AzureService.js";
 
 
 @Tags("Integrations")

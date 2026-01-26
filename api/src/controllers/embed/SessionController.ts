@@ -1,8 +1,8 @@
 import {Get, Header, Path, Query, Route, Tags} from "tsoa";
-import {BaseController} from "../../models/BaseController";
-import {EmbedService} from "../../services/EmbedService";
-import {API_KEY_HEADER_NAME, CriaResponse} from "../../models/CriaResponse";
-import {BotNotFoundError, UnauthorizedError} from "../../services/ManageService";
+import {BaseController} from "../../models/BaseController.js";
+import {EmbedService} from "../../services/EmbedService.js";
+import {API_KEY_HEADER_NAME, CriaResponse} from "../../models/CriaResponse.js";
+import {BotNotFoundError, UnauthorizedError} from "../../services/ManageService.js";
 
 interface SessionDataResponse extends CriaResponse {
   sessionData: Record<string, any> | null

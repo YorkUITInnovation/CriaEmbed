@@ -1,8 +1,8 @@
 import {Get, Middlewares, Path, Route, Tags} from "tsoa";
-import {BaseController} from "../../models/BaseController";
-import {EmbedService} from "../../services/EmbedService";
-import {CriaError, CriaResponse, ExistsChatResponse} from "../../models/CriaResponse";
-import {RATE_LIMIT_CHAT_ALL_HANDLERS} from "../../models/LimitGenerator";
+import {BaseController} from "../../models/BaseController.js";
+import {EmbedService} from "../../services/EmbedService.js";
+import {CriaError, CriaResponse, ExistsChatResponse} from "../../models/CriaResponse.js";
+import {RATE_LIMIT_CHAT_ALL_HANDLERS} from "../../models/LimitGenerator.js";
 
 
 @Tags("Chats")

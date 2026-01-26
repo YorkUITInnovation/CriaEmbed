@@ -1,8 +1,8 @@
-import {ChannelHandler} from "../ChannelHandler";
+import {ChannelHandler} from "../ChannelHandler.js";
 import {MessageFactory, TurnContext} from "botbuilder";
 import fs from "fs";
 import path from "path";
-import {Config} from "../../../config";
+import {Config} from "../../../config.js";
 
 export class EmailHandler extends ChannelHandler {
 

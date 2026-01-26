@@ -6,13 +6,13 @@ import {
   ConfigurationServiceClientCredentialFactory,
   TurnContext
 } from "botbuilder";
-import {ChannelHandler} from "./ChannelHandler";
-import {EmailHandler} from "./channels/EmailHandler";
+import {ChannelHandler} from "./ChannelHandler.js";
+import {EmailHandler} from "./channels/EmailHandler.js";
 import {NextFunction} from "express";
-import {EmbedService} from "../EmbedService";
-import {IBotEmbed} from "../../database/mysql/controllers/BotEmbed";
-import AzureChatCache from "../../database/redis/controllers/AzureChatCache";
-import {TeamsHandler} from "./channels/TeamsHandler";
+import {EmbedService} from "../EmbedService.js";
+import {IBotEmbed} from "../../database/mysql/controllers/BotEmbed.js";
+import AzureChatCache from "../../database/redis/controllers/AzureChatCache.js";
+import {TeamsHandler} from "./channels/TeamsHandler.js";
 
 export class ChannelNotSupportedError extends Error {
 }

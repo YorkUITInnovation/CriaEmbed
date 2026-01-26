@@ -1,6 +1,6 @@
 import {Controller} from "tsoa";
-import {BaseService} from "../services/BaseService";
-import {debugEnabled} from "../config";
+import {BaseService} from "../services/BaseService.js";
+import {debugEnabled} from "../config.js";
 
 
 interface IController {
@@ -20,6 +20,10 @@ export abstract class BaseController extends Controller implements IController {
     if (error !== undefined && debugEnabled()) {
       console.error("Received Error:", error);
     }
+  }
+
+  setHeader(name: string, value: string): void {
+    super.setHeader(name, value);
   }
 
 }

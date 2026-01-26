@@ -1,13 +1,13 @@
 import {Pool} from "mysql2";
-import {Config} from "../config";
+import {Config} from "../config.js";
 import axios, {AxiosRequestConfig, AxiosResponse} from "axios";
 
 export abstract class BaseService {
 
-    protected mySqlPool: Pool;
+    protected mySqlPool?: Pool;
     private criaWebServiceBaseUrl: string = `${Config.CRIA_SERVER_URL}/webservice/rest/server.php`;
 
-    protected constructor(pool: Pool) {
+    protected constructor(pool?: Pool) {
         this.mySqlPool = pool;
     }
 

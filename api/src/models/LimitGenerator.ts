@@ -1,12 +1,12 @@
 import rateLimit, {
   RateLimitExceededEventHandler,
   RateLimitRequestHandler,
-  ValueDeterminingMiddleware
+  ValueDeterminingMiddleware,
+  Options
 } from "express-rate-limit";
-import {CriaResponse} from "./CriaResponse";
-import {Options} from "express-rate-limit/dist";
+import {CriaResponse} from "./CriaResponse.js";
 import {Request, Response} from "express";
-import {Config} from "../config";
+import {Config} from "../config.js";
 
 
 function generateHandler(message?: string): RateLimitExceededEventHandler {

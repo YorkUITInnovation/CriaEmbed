@@ -1,16 +1,16 @@
 import { randomUUID } from 'crypto';
-import {VectorStoreService} from "./VectorStoreService";
-import {BaseService} from "./BaseService";
-import {BotLocale, EmbedPosition, IBotEmbed} from "../database/mysql/controllers/BotEmbed";
-import {ManageService} from "./ManageService";
+import {VectorStoreService} from "./VectorStoreService.js";
+import {BaseService} from "./BaseService.js";
+import {BotLocale, EmbedPosition, IBotEmbed} from "../database/mysql/controllers/BotEmbed.js";
+import {ManageService} from "./ManageService.js";
 import {AxiosResponse} from "axios";
-import {Config, debugEnabled} from "../config";
-import {CriaError, CriaResponseCode, CriaResponseStatus, SendChatResponse} from "../models/CriaResponse";
+import {Config, debugEnabled} from "../config.js";
+import {CriaError, CriaResponseCode, CriaResponseStatus, SendChatResponse} from "../models/CriaResponse.js";
 import * as fs from "fs";
 import path from "path";
-import MessageCache from "../database/redis/controllers/MessageCache";
+import MessageCache from "../database/redis/controllers/MessageCache.js";
 import {parse} from "node-html-parser";
-import TrackingCache from "../database/redis/controllers/TrackingCache";
+import TrackingCache from "../database/redis/controllers/TrackingCache.js";
 
 const EMBED_BASE_SCRIPT: string = fs.readFileSync(
     path.join(Config.ASSETS_FOLDER_PATH, "/public/loader.js")
@@ -254,8 +254,30 @@ export class EmbedService extends BaseService {
 
   }
 
+  async existsEmbedChat(chatId: string): Promise<boolean> {
 
-  
+    const response: AxiosResponse = await this.get(
+        Config.CRIA_BOT_SERVER_URL + `/bots/chats/${chatId}/exists?x-api-key=${Config.CRIA_BOT_SERVER_TOKEN}`
+    )
+
+    if (response.data.code !== "SUCCESS") {
+      throw new CriaError(
+          "Error: " +
+          (JSON.stringify(response.data))
+      )
+    }
+
+    const exists: boolean | null | undefined = response.data.exists;
+
+    if (exists === null || exists === undefined) {
+      throw new CriaError(
+          "Error: Response shows undefined exists. Payload read error?"
+      )
+    }
+
+    return exists;
+
+  }
 
   async sendEmbedChat(
       botName: string,
