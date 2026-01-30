@@ -7,6 +7,7 @@ import {ValidateError} from "tsoa";
 import cors from "cors";
 import morgan from "morgan";
 import {Config} from "./config.js";
+import axios from "axios";
 import {CriaResponse} from "./models/CriaResponse.js";
 import path from "path";
 import multer from "multer";
@@ -116,6 +117,31 @@ baseRouter.get("/health_check", (_: Request, res: Response) => {
     uptime: process.uptime(),
     version: process.env.npm_package_version || "1.0.0"
   });
+});
+
+// Lightweight diagnostic endpoint to validate connectivity to external dependencies (e.g., Criabot)
+baseRouter.get("/manage/_diagnose", async (_: Request, res: Response) => {
+  const diagnostics: any = {
+    service: "CriaEmbed API",
+    timestamp: Date.now(),
+    criabot: {
+      url: Config.CRIA_BOT_SERVER_URL,
+      reachable: false,
+      status: null,
+      error: null
+    }
+  };
+
+  try {
+    const url = (Config.CRIA_BOT_SERVER_URL || "").replace(/\/$/, "") + "/health_check";
+    const r = await axios.get(url, { timeout: 3000 });
+    diagnostics.criabot.reachable = true;
+    diagnostics.criabot.status = r.status;
+  } catch (e: any) {
+    diagnostics.criabot.error = e.message || String(e);
+  }
+
+  res.status(200).json({ status: "ok", diagnostics });
 });
 
 // Basic handler for errors

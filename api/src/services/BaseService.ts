@@ -36,7 +36,8 @@ export abstract class BaseService {
         }
 
         // Only treat 2xx responses as success unless caller overrides
-        if (!baseConfig.validateStatus) {
+        // Don't override if validateStatus is explicitly provided
+        if (baseConfig.validateStatus === undefined) {
             baseConfig.validateStatus = (status: number) => status >= 200 && status < 300;
         }
 

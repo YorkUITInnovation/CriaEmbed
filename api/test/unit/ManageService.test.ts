@@ -111,11 +111,11 @@ describe('ManageService', () => {
 
       expect(mockedAxios.get).toHaveBeenCalledTimes(2);
       expect(mockedAxios.get).toHaveBeenCalledWith(
-        `${Config.CRIA_BOT_SERVER_URL}/groups/${botName}/about`,
+        `${Config.CRIA_BOT_SERVER_URL}/bots/${botName}/manage/about`,
         expect.objectContaining({ headers: { 'x-api-key': Config.CRIA_BOT_SERVER_TOKEN }, validateStatus: expect.any(Function) })
       );
       expect(mockedAxios.get).toHaveBeenCalledWith(
-        `${Config.CRIA_BOT_SERVER_URL}/auth/${apiKey}/check`,
+        `${Config.CRIA_SERVER_URL}/auth/${apiKey}/check`,
         expect.objectContaining({ headers: { 'x-api-key': Config.CRIA_BOT_SERVER_TOKEN }, validateStatus: expect.any(Function) })
       );
     });

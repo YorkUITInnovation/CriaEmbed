@@ -11,6 +11,7 @@ import path from "path";
 import MessageCache from "../database/redis/controllers/MessageCache.js";
 import {parse} from "node-html-parser";
 import TrackingCache from "../database/redis/controllers/TrackingCache.js";
+import {getMySQLPool} from "../database/mysql/pool.js";
 
 const EMBED_BASE_SCRIPT: string = fs.readFileSync(
     path.join(Config.ASSETS_FOLDER_PATH, "/public/loader.js")
@@ -102,7 +103,7 @@ export class EmbedService extends BaseService {
   private vectorStore: VectorStoreService;
 
     constructor(
-        public readonly manageService: ManageService = new ManageService(),
+        public readonly manageService: ManageService = new ManageService(getMySQLPool()),
         public readonly messageCache: MessageCache = new MessageCache(),
         public readonly trackingCache: TrackingCache = new TrackingCache()
     ) {

@@ -2,6 +2,7 @@ import {Delete, Header, Path, Route, Tags} from "tsoa";
 import {BotNotFoundError, EmbedNotFoundError, ManageService, UnauthorizedError} from "../../services/ManageService.js";
 import {BaseController} from "../../models/BaseController.js";
 import {API_KEY_HEADER_NAME, CriaError, CriaResponse} from "../../models/CriaResponse.js";
+import {getMySQLPool} from "../../database/mysql/pool.js";
 
 interface DeleteResponse extends CriaResponse {
   botName?: string;
@@ -13,7 +14,7 @@ export class DeleteController extends BaseController {
 
   constructor(
       pool?: import('mysql2').Pool,
-      public service: ManageService = new ManageService(pool)
+      public service: ManageService = new ManageService(pool || getMySQLPool())
   ) {
     super();
   }
@@ -69,11 +70,13 @@ export class DeleteController extends BaseController {
             timestamp: Date.now().toString()
           }
         default:
+          console.error(`[DeleteController] Unexpected error:`, e);
+          console.error(`[DeleteController] Error stack:`, e.stack);
           this.setStatus(500, e);
           return {
             timestamp: Date.now().toString(),
             status: 500,
-            message: `Internal error occurred! Error Class: '${e.constructor.name}'`,
+            message: `Internal error occurred! Error Class: '${e.constructor.name}', Message: '${e.message || 'Unknown error'}'`,
             code: "ERROR"
           };
       }

@@ -4,6 +4,7 @@ import {BaseController} from "../../models/BaseController.js";
 
 import type {IBotBaseEmbedConfig, IBotEmbed} from "../../database/mysql/controllers/BotEmbed.js";
 import {API_KEY_HEADER_NAME, CriaError, CriaResponse} from "../../models/CriaResponse.js";
+import {getMySQLPool} from "../../database/mysql/pool.js";
 
 interface UpdateResponse extends CriaResponse {
     config?: IBotEmbed
@@ -16,7 +17,7 @@ export class UpdateController extends BaseController {
 
     constructor(
     pool?: import('mysql2').Pool,
-    public service: ManageService = new ManageService(pool),
+    public service: ManageService = new ManageService(pool || getMySQLPool()),
     ) {
         super();
     }
@@ -75,11 +76,13 @@ export class UpdateController extends BaseController {
                         timestamp: Date.now().toString()
                     }
                 default:
+                    console.error(`[UpdateController] Unexpected error:`, e);
+                    console.error(`[UpdateController] Error stack:`, e.stack);
                     this.setStatus(500, e);
                     return {
                         timestamp: Date.now().toString(),
                         status: 500,
-                        message: `Internal error occurred! Class: '${e.constructor.name}'`,
+                        message: `Internal error occurred! Class: '${e.constructor.name}', Message: '${e.message || 'Unknown error'}'`,
                         code: "ERROR"
                     };
             }

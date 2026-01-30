@@ -5,6 +5,7 @@ import {BaseController} from "../../models/BaseController.js";
 import {IBotEmbed} from "../../database/mysql/controllers/BotEmbed.js";
 import {API_KEY_HEADER_NAME, CriaError, CriaResponse} from "../../models/CriaResponse.js";
 import {debugEnabled} from "../../config.js";
+import {getMySQLPool} from "../../database/mysql/pool.js";
 
 interface RetrieveResponse extends CriaResponse {
     config?: IBotEmbed
@@ -16,7 +17,7 @@ export class RetrieveController extends BaseController {
 
     constructor(
     pool?: import('mysql2').Pool,
-    public service: ManageService = new ManageService(pool),
+    public service: ManageService = new ManageService(pool || getMySQLPool()),
     ) {
         super();
     }
@@ -70,15 +71,14 @@ export class RetrieveController extends BaseController {
                         timestamp: Date.now().toString()
                     }
                 default:
-                    if (debugEnabled()) {
-                        console.error("Error occurred retrieving embed config!", e.stack);
-                    }
+                    console.error(`[RetrieveController] Unexpected error:`, e);
+                    console.error(`[RetrieveController] Error stack:`, e.stack);
 
                     this.setStatus(500, e);
                     return {
                         timestamp: Date.now().toString(),
                         status: 500,
-                        message: `Internal error occurred! Error Class: '${e.constructor.name}'`,
+                        message: `Internal error occurred! Error Class: '${e.constructor.name}', Message: '${e.message || 'Unknown error'}'`,
                         code: "ERROR"
                     };
             }
