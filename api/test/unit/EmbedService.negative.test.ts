@@ -109,6 +109,9 @@ describe('EmbedService - Negative Cases', () => {
         botContact: null,
       });
 
+      // Provide the Criabot about response with a valid llm_model_id
+      mockedAxios.get.mockResolvedValueOnce({ data: { about: { effective_config: { llm_model_id: 42 } } } } as any);
+
       mockedAxios.post.mockResolvedValueOnce({
         status: 500,
         data: {
@@ -136,6 +139,9 @@ describe('EmbedService - Negative Cases', () => {
         botContact: null,
       });
 
+      // Provide about response first
+      mockedAxios.get.mockResolvedValueOnce({ data: { about: { effective_config: { llm_model_id: 42 } } } } as any);
+
       mockedAxios.post.mockRejectedValueOnce(new Error('Network error'));
 
       await expect(
@@ -155,6 +161,9 @@ describe('EmbedService - Negative Cases', () => {
         botTrustWarning: null,
         botContact: null,
       });
+
+      // Provide about response first
+      mockedAxios.get.mockResolvedValueOnce({ data: { about: { effective_config: { llm_model_id: 42 } } } } as any);
 
       const timeoutError = new Error('timeout of 30000ms exceeded');
       (timeoutError as any).code = 'ECONNABORTED';
