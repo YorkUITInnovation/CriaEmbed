@@ -241,4 +241,37 @@ Headers:
 Responses:
 - `200 OK` (DeleteResponse)
 
+---
 
+## 5. Health & Diagnostics
+
+### GET /health_check
+Returns service health status.
+
+Responses:
+- `200 OK`
+  ```json
+  {
+    "status": "ok",
+    "service": "CriaEmbed API",
+    "timestamp": "string",
+    "uptime": 12345,
+    "version": "string"
+  }
+  ```
+
+### GET /manage/_diagnose
+Returns internal diagnostics for the service.
+
+Responses:
+- `200 OK`
+  ```json
+  {
+    "status": "ok",
+    "diagnostics": {
+      "service": "CriaEmbed API",
+      "timestamp": 1234567890,
+      "criabot": {}
+    }
+  }
+  ```
