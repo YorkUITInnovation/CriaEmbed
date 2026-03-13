@@ -117,10 +117,10 @@ export class BotEmbed extends MySQLController {
       this.pool.query<ResultSetHeader>(
           `
               INSERT INTO \`EmbedBot\` (botName, botTitle, botSubTitle, botGreeting, botIconUrl, botEmbedTheme,
-                                        botWatermark, botLocale, initialPrompts, microsoftAppId, microsoftAppPassword,
+                                        botWatermark, botLocale, initialPrompts, botEmbedPosition, microsoftAppId, microsoftAppPassword,
                                         integrationsNoContextReply, integrationsFirstEmailOnly, integrationsWhitelistFilter, botEmbedDefaultEnabled,
                                         botTrustWarning, embedHoverTooltip, botContact)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `,
           [
             bot.botName,
@@ -132,6 +132,7 @@ export class BotEmbed extends MySQLController {
             (bot.botWatermark === null || bot.botWatermark === undefined) ? null : (bot.botWatermark ? 1 : 0),
             bot.botLocale,
             bot.initialPrompts === undefined || bot.initialPrompts === null ? null : JSON.stringify(bot.initialPrompts),
+            bot.botEmbedPosition,
             bot.microsoftAppId,
             bot.microsoftAppPassword,
             (bot.integrationsNoContextReply === null || bot.integrationsNoContextReply === undefined) ? null : (bot.integrationsNoContextReply ? 1 : 0),

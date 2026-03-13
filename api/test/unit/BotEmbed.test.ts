@@ -72,12 +72,12 @@ describe('BotEmbed (DB controller) - Insert/Update value handling', () => {
     // According to BotEmbed.insert ordering: botWatermark is at index 6
     expect(insertValues[6]).toBeNull();
 
-    // integrationsNoContextReply -> index 11
-    expect(insertValues[11]).toBeNull();
-    // integrationsFirstEmailOnly -> index 12
+    // integrationsNoContextReply -> index 12 (shifted by +1 due to botEmbedPosition)
     expect(insertValues[12]).toBeNull();
-    // botEmbedDefaultEnabled -> index 14
-    expect(insertValues[14]).toBeNull();
+    // integrationsFirstEmailOnly -> index 13 (shifted by +1 due to botEmbedPosition)
+    expect(insertValues[13]).toBeNull();
+    // botEmbedDefaultEnabled -> index 15 (shifted by +1 due to botEmbedPosition)
+    expect(insertValues[15]).toBeNull();
 
     // initialPrompts should be null, not "undefined" / not a string
     expect(insertValues[8]).toBeNull();
@@ -144,9 +144,9 @@ describe('BotEmbed (DB controller) - Insert/Update value handling', () => {
     const insertValues = insertIdx >= 0 ? captured.valuesList[insertIdx] : captured.valuesList[0];
 
     expect(insertValues[6]).toBe(1);
-    expect(insertValues[11]).toBe(0);
-    expect(insertValues[12]).toBe(1);
-    expect(insertValues[14]).toBe(0);
+    expect(insertValues[12]).toBe(0);  // integrationsNoContextReply (shifted by +1)
+    expect(insertValues[13]).toBe(1);  // integrationsFirstEmailOnly (shifted by +1)
+    expect(insertValues[15]).toBe(0);  // botEmbedDefaultEnabled (shifted by +1)
 
     // initialPrompts serialized
     expect(insertValues[8]).toBe(JSON.stringify([]));
