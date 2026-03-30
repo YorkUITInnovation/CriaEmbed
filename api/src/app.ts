@@ -1,13 +1,14 @@
 import express from "express";
 import e, {json, NextFunction, Request, Response, urlencoded} from "express";
 import swagger from "swagger-ui-express";
-import {RegisterRoutes} from "../build/routes";
+import {RegisterRoutes} from "../build/routes.js";
 import swaggerJson from "../build/swagger.json";
 import {ValidateError} from "tsoa";
 import cors from "cors";
 import morgan from "morgan";
-import {Config} from "./config";
-import {CriaResponse} from "./models/CriaResponse";
+import {Config} from "./config.js";
+import axios from "axios";
+import {CriaResponse} from "./models/CriaResponse.js";
 import path from "path";
 import multer from "multer";
 
@@ -106,6 +107,42 @@ app.disable("x-powered-by");
 
 // Register routs
 RegisterRoutes(baseRouter);
+
+// Health check endpoint (for docker health checks) - register after routes but before 404 handler
+baseRouter.get("/health_check", (_: Request, res: Response) => {
+  res.status(200).json({
+    status: "ok",
+    service: "CriaEmbed API",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    version: process.env.npm_package_version || "1.0.0"
+  });
+});
+
+// Lightweight diagnostic endpoint to validate connectivity to external dependencies (e.g., Criabot)
+baseRouter.get("/manage/_diagnose", async (_: Request, res: Response) => {
+  const diagnostics: any = {
+    service: "CriaEmbed API",
+    timestamp: Date.now(),
+    criabot: {
+      url: Config.CRIA_BOT_SERVER_URL,
+      reachable: false,
+      status: null,
+      error: null
+    }
+  };
+
+  try {
+    const url = (Config.CRIA_BOT_SERVER_URL || "").replace(/\/$/, "") + "/health_check";
+    const r = await axios.get(url, { timeout: 3000 });
+    diagnostics.criabot.reachable = true;
+    diagnostics.criabot.status = r.status;
+  } catch (e: any) {
+    diagnostics.criabot.error = e.message || String(e);
+  }
+
+  res.status(200).json({ status: "ok", diagnostics });
+});
 
 // Basic handler for errors
 baseRouter.use((err: unknown, req: Request, res: Response, next: NextFunction) => {

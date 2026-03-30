@@ -1,6 +1,6 @@
 import {ResultSetHeader, RowDataPacket} from "mysql2"
-import {MySQLController} from "../../../models/MySQLController";
-import {CriabotChatResponseRelatedPrompt} from "../../../services/EmbedService";
+import {MySQLController} from "../../../models/MySQLController.js";
+import {CriabotChatResponseRelatedPrompt} from "../../../services/EmbedService.js";
 
 export enum EmbedPosition {
   BL = 1,
@@ -39,12 +39,16 @@ export interface IBotEmbedPacket extends IBotEmbed, RowDataPacket {
 
 export class BotEmbed extends MySQLController {
 
+  constructor(pool: import('mysql2').Pool) {
+    super(pool);
+  }
+
   retrievedById(botId: number): Promise<IBotEmbed | undefined> {
     return new Promise((resolve, reject) => {
       this.pool.query<IBotEmbedPacket[]>(
           "SELECT * FROM `EmbedBot` WHERE `id`=?",
           [botId],
-          (err, res) => {
+          (err: Error | null, res?: IBotEmbedPacket[]) => {
             if (err) reject(err)
             else resolve(res?.[0])
           }
@@ -57,7 +61,7 @@ export class BotEmbed extends MySQLController {
       this.pool.query<IBotEmbedPacket[]>(
           "SELECT * FROM `EmbedBot` WHERE `botName`=?",
           [botName],
-          (err, res) => {
+          (err: Error | null, res?: IBotEmbedPacket[]) => {
             if (err) reject(err)
             else resolve(res?.[0])
           }
@@ -80,7 +84,7 @@ export class BotEmbed extends MySQLController {
               WHERE botName = ?
           `,
           [bot.botTitle, bot.botSubTitle, bot.botGreeting, bot.botIconUrl, bot.botEmbedTheme, bot.botWatermark, bot.botLocale, bot.botName],
-          (err, _) => {
+          (err: Error | null, _?: ResultSetHeader) => {
             if (err) reject(err)
             else
               this.retrieveByName(bot.botName)
@@ -96,9 +100,9 @@ export class BotEmbed extends MySQLController {
       this.pool.query<ResultSetHeader>(
           "DELETE FROM `EmbedBot` WHERE id=?",
           [botId],
-          (err, res: ResultSetHeader) => {
+          (err: Error | null, res?: ResultSetHeader) => {
             if (err) reject(err)
-            else resolve(res.affectedRows)
+            else resolve(res!.affectedRows)
           }
       )
     })
@@ -109,9 +113,9 @@ export class BotEmbed extends MySQLController {
       this.pool.query<ResultSetHeader>(
           "DELETE FROM `EmbedBot` WHERE botName=?",
           [botName],
-          (err, res: ResultSetHeader) => {
+          (err: Error | null, res?: ResultSetHeader) => {
             if (err) reject(err)
-            else resolve(res.affectedRows)
+            else resolve(res!.affectedRows)
           }
       )
     })
@@ -122,9 +126,9 @@ export class BotEmbed extends MySQLController {
       this.pool.query<ResultSetHeader[]>(
           "SELECT 1 FROM `EmbedBot` WHERE botName=?",
           [botName],
-          (err, res: ResultSetHeader[]) => {
+          (err: Error | null, res?: ResultSetHeader[]) => {
             if (err) reject(err)
-            else resolve(res.length > 0)
+            else resolve((res?.length ?? 0) > 0)
           }
       )
     })

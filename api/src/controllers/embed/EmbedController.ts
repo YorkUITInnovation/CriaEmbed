@@ -1,9 +1,9 @@
 import {Body, Example, Get, Header, Middlewares, Path, Post, Produces, Query, Request, Route, Tags} from "tsoa";
-import {BotNotFoundError, EmbedNotFoundError, UnauthorizedError} from "../../services/ManageService";
-import {BaseController} from "../../models/BaseController";
-import {EmbedService} from "../../services/EmbedService";
-import {API_KEY_HEADER_NAME, CriaError, CriaResponse} from "../../models/CriaResponse";
-import {RATE_LIMIT_EMBED_ALL_HANDLERS} from "../../models/LimitGenerator";
+import {BotNotFoundError, EmbedNotFoundError, UnauthorizedError} from "../../services/ManageService.js";
+import {BaseController} from "../../models/BaseController.js";
+import {EmbedService} from "../../services/EmbedService.js";
+import {API_KEY_HEADER_NAME, CriaError, CriaResponse} from "../../models/CriaResponse.js";
+import {RATE_LIMIT_EMBED_ALL_HANDLERS} from "../../models/LimitGenerator.js";
 import e from "express";
 
 interface EmbedBody {

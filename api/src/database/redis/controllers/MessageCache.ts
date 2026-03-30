@@ -1,4 +1,4 @@
-import {RedisController} from "../../../models/RedisController";
+import {RedisController} from "../../../models/RedisController.js";
 
 export default class MessageCache extends RedisController {
 

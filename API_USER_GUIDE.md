@@ -280,5 +280,46 @@ curl -X DELETE "https://api.example.com/manage/myBot/delete" \
 
 ---
 
+## 7. Health & Diagnostics
+
+### 7.1 Health Check
+GET /health_check
+
+Example:
+```
+curl "https://api.example.com/health_check"
+```
+Response:
+```json
+{
+  "status": "ok",
+  "service": "CriaEmbed API",
+  "timestamp": "2025-11-19T14:05:28Z",
+  "uptime": 12345,
+  "version": "1.0.0"
+}
+```
+
+### 7.2 Diagnose
+GET /manage/_diagnose
+
+Example:
+```
+curl "https://api.example.com/manage/_diagnose"
+```
+Response:
+```json
+{
+  "status": "ok",
+  "diagnostics": {
+    "service": "CriaEmbed API",
+    "timestamp": 1234567890,
+    "criabot": {}
+  }
+}
+```
+
+---
+
 **Need help?** Reach out to the CriaEmbed support team at support@cria.ai
 

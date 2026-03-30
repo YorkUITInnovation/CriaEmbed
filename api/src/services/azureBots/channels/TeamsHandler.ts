@@ -1,4 +1,4 @@
-import {ChannelHandler} from "../ChannelHandler";
+import {ChannelHandler} from "../ChannelHandler.js";
 import {ActivityTypes, MessageFactory, TurnContext} from "botbuilder";
 
 export class TeamsHandler extends ChannelHandler {

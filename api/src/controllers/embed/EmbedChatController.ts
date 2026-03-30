@@ -1,9 +1,9 @@
 import {Body, Middlewares, Path, Post, Route, Tags} from "tsoa";
-import {EmbedNotFoundError} from "../../services/ManageService";
-import {BaseController} from "../../models/BaseController";
-import {EmbedService} from "../../services/EmbedService";
-import {CriaError, CriaResponse, SendChatResponse} from "../../models/CriaResponse";
-import {RATE_LIMIT_CHAT_ALL_HANDLERS} from "../../models/LimitGenerator";
+import {EmbedNotFoundError} from "../../services/ManageService.js";
+import {BaseController} from "../../models/BaseController.js";
+import {EmbedService} from "../../services/EmbedService.js";
+import {CriaError, CriaResponse, SendChatResponse} from "../../models/CriaResponse.js";
+import {RATE_LIMIT_CHAT_ALL_HANDLERS} from "../../models/LimitGenerator.js";
 
 type ChatPayload = {
     chatId: string,
@@ -28,11 +28,31 @@ export class EmbedChatController extends BaseController {
         @Body() config: ChatPayload,
     ): Promise<SendChatResponse> {
 
+        // Basic input validation to avoid malformed or abusive requests
+        if (!botId || botId.trim().length === 0) {
+            throw new CriaError("Invalid botId provided.");
+        }
+
+        if (!config?.chatId || config.chatId.trim().length === 0) {
+            throw new CriaError("chatId is required.");
+        }
+
+        const prompt: string = config?.prompt ?? "";
+        if (prompt.trim().length === 0) {
+            throw new CriaError("prompt must not be empty.");
+        }
+
+        // Protect against excessively large prompts
+        const MAX_PROMPT_LENGTH = 4000;
+        if (prompt.length > MAX_PROMPT_LENGTH) {
+            throw new CriaError(`prompt exceeds maximum length of ${MAX_PROMPT_LENGTH} characters.`);
+        }
+
         try {
             const chat: SendChatResponse = await this.service.sendEmbedChat(
                 botId,
                 config.chatId,
-                config.prompt
+                prompt
             )
             this.setStatus(200);
             return chat;

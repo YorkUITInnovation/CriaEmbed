@@ -1,6 +1,6 @@
-import {CriabotChatResponseRelatedPrompt, EmbedPublicConfig} from "../services/EmbedService";
+import {CriabotChatResponseRelatedPrompt, EmbedPublicConfig} from "../services/EmbedService.js";
 
-export type CriaResponseStatus = 200 | 400 | 300 | 401 | 500 | 301 | 302 | 409 | 403 | 405 | 429 | 404 | 422;
+export type CriaResponseStatus = 200 | 400 | 300 | 401 | 500 | 301 | 302 | 409 | 403 | 405 | 429 | 404 | 422 | 502 | 503;
 export type CriaResponseCode =
     "ERROR"
     | "UNAUTHORIZED"
@@ -51,12 +51,12 @@ export const API_KEY_HEADER_NAME: string = "X-Api-Key";
 export class CriaError extends Error {
   public readonly payload: CriaResponse;
 
-  constructor(message: string) {
+  constructor(message: string, status: CriaResponseStatus = 500) {
     super();
 
     this.payload = this.strippedResponse({
       message: `[Cria] ${message}`,
-      status: 500,
+      status: status,
       timestamp: Date.now().toString(),
       code: "ERROR"
     });

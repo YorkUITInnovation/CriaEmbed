@@ -1,8 +1,8 @@
 import {Get, Path, Query, Route, Tags} from "tsoa";
-import {BaseController} from "../../models/BaseController";
-import {EmbedService} from "../../services/EmbedService";
-import {ChatAudioResponse, CriaError} from "../../models/CriaResponse";
-import SpeechService, {ChatContentNotFoundError, SpeechLanguage} from "../../services/SpeechService";
+import {BaseController} from "../../models/BaseController.js";
+import {EmbedService} from "../../services/EmbedService.js";
+import {ChatAudioResponse, CriaError} from "../../models/CriaResponse.js";
+import SpeechService, {ChatContentNotFoundError, type SpeechLanguage} from "../../services/SpeechService.js";
 import {Readable} from "stream";
 
 

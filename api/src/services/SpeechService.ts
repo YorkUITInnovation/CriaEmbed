@@ -1,12 +1,16 @@
 import axios, {AxiosResponse} from "axios";
-import {Config} from "../config";
+import {Config} from "../config.js";
 import * as stream from "stream";
 import {Readable} from "stream";
-import {BaseService} from "./BaseService";
-import AudioCache from "../database/redis/controllers/AudioCache";
-import MessageCache from "../database/redis/controllers/MessageCache";
+import {BaseService} from "./BaseService.js";
+import AudioCache from "../database/redis/controllers/AudioCache.js";
+import MessageCache from "../database/redis/controllers/MessageCache.js";
 
 export type SpeechLanguage = "fr-FR" | "en-US";
+export const SpeechLanguage = {
+    FR: "fr-FR" as const,
+    EN: "en-US" as const
+} as const;
 
 const SpeechVoiceMap: Record<SpeechLanguage, string> = {
     "fr-FR": "fr-FR-BrigitteNeural",

@@ -1,8 +1,8 @@
 import {TurnContext} from "botbuilder";
-import {IBotEmbed} from "../../database/mysql/controllers/BotEmbed";
-import {CriabotChatReply, EmbedService, ExtendedSendChatResponse} from "../EmbedService";
+import {IBotEmbed} from "../../database/mysql/controllers/BotEmbed.js";
+import {CriabotChatReply, EmbedService, ExtendedSendChatResponse} from "../EmbedService.js";
 import {Context} from "node:vm";
-import AzureChatCache from "../../database/redis/controllers/AzureChatCache";
+import AzureChatCache from "../../database/redis/controllers/AzureChatCache.js";
 
 export abstract class ChannelHandler {
 
@@ -30,7 +30,7 @@ export abstract class ChannelHandler {
       await this.chatCache.set(context.activity.conversation.id, chatId);
     }
 
-    return {chatId: chatId, new: newChat};
+    return {chatId: chatId!, new: newChat};
 
   }
 
