@@ -198,7 +198,30 @@ Path Parameters:
 Headers:
 - `X-Api-Key` (string)
 
-Body (JSON): IBotBaseEmbedConfig
+Body (JSON): `IBotBaseEmbedConfig`
+```json
+{
+  "botTitle": "Bot Title",
+  "botSubTitle": "Bot Subtitle",
+  "botGreeting": "Hello!",
+  "botIconUrl": "https://example.com/icon.png",
+  "botEmbedTheme": "#ffffff",
+  "botEmbedDefaultEnabled": true,
+  "botEmbedPosition": 2,
+  "botWatermark": true,
+  "botLocale": "en-US",
+  "botTrustWarning": "Warning message",
+  "initialPrompts": [],
+  "microsoftAppId": "app-id",
+  "microsoftAppPassword": "app-password",
+  "integrationsNoContextReply": true,
+  "integrationsFirstEmailOnly": false,
+  "integrationsWhitelistFilter": "*",
+  "embedHoverTooltip": "Click me!",
+  "botContact": "contact@example.com"
+}
+```
+Note: `botEmbedPosition` values are: `1` (Bottom Left), `2` (Bottom Right), `3` (Top Right), `4` (Top Left).
 
 Responses:
 - `200 OK` (InsertResponse)
@@ -224,7 +247,7 @@ Path Parameters:
 Headers:
 - `X-Api-Key` (string)
 
-Body (JSON): IBotBaseEmbedConfig
+Body (JSON): `IBotBaseEmbedConfig` (see POST /insert for example body)
 
 Responses:
 - `200 OK` (UpdateResponse)
