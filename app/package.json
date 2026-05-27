@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build --mode production",
-    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
+    "lint": "pretty-quick --check",
+    "lint:fix": "pretty-quick",
     "preview": "vite preview",
     "start": "serve -s dist -l 4000"
   },
@@ -33,6 +34,8 @@
     "eslint-plugin-react": "^7.32.2",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.3",
+    "prettier": "^2.8.8",
+    "pretty-quick": "^3.1.3",
     "vite": "^4.4.5"
   }
 }

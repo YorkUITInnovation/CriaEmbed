@@ -14,25 +14,29 @@ FROM        base AS with_packages
 
 #           USER & ENTRYPOINT
 
-USER        cria
 ENV         USER=cria HOME=/home/cria
 WORKDIR     /home/cria
 
 #           PYTHON PACKAGES
 
-COPY        package.json ./
+COPY        --chown=cria:cria package.json ./
 
+USER        cria
 RUN         npm install
 
 FROM        with_packages AS final
 
+USER        root
+
 #           PROJECT SOURCE CODE
 
-COPY        ./dist ./dist
+COPY        --chown=cria:cria ./dist ./dist
+RUN         chmod -R u+rwX,go+rX /home/cria/dist
 
 #           START SERVER
 
 COPY        --chown=cria:cria ./entrypoint.sh /entrypoint.sh
 RUN         chmod +x /entrypoint.sh
+USER        cria
 ENTRYPOINT  ["/usr/bin/tini", "-g", "--"]
 CMD         ["/entrypoint.sh"]

@@ -1,26 +1,25 @@
-import {BaseService} from "./BaseService.js";
-import {BotEmbed, IBotEmbed, IBotEmbedConfig} from "../database/mysql/controllers/BotEmbed.js";
-import {CriaError} from "../models/CriaResponse.js";
-import {AxiosResponse, AxiosError} from "axios";
-import {Config as GlobalConfig} from "../config.js";
+import { BaseService } from "./BaseService.js";
+import {
+  BotEmbed,
+  IBotEmbed,
+  IBotEmbedConfig
+} from "../database/mysql/controllers/BotEmbed.js";
+import { CriaError } from "../models/CriaResponse.js";
+import { AxiosResponse, AxiosError } from "axios";
+import { Config as GlobalConfig } from "../config.js";
 
+export class DuplicateEmbedError extends Error {}
 
-export class DuplicateEmbedError extends Error {
-}
+export class EmbedNotFoundError extends Error {}
 
-export class EmbedNotFoundError extends Error {
-}
+export class BotNotFoundError extends Error {}
 
-export class BotNotFoundError extends Error {
-}
-
-export class UnauthorizedError extends Error {
-}
+export class UnauthorizedError extends Error {}
 
 export type CriaBotExistsFunctionParams = {
-  bot_id: string,
-  bot_api_key: string
-}
+  bot_id: string;
+  bot_api_key: string;
+};
 
 // Q33BRKoVYQKNGZNNbDEm14i90ZLDyL3hJsWnTIRoqPE
 
@@ -28,24 +27,100 @@ export class ManageService extends BaseService {
   private db?: BotEmbed;
   private config: typeof GlobalConfig;
 
-  constructor(pool?: import('mysql2').Pool, config?: typeof GlobalConfig) {
+  constructor(pool?: import("mysql2").Pool, config?: typeof GlobalConfig) {
     super(pool);
     if (pool) {
       this.db = new BotEmbed(pool);
-      console.log('[ManageService] Initialized with database pool');
+      console.log("[ManageService] Initialized with database pool");
     } else {
-      console.error('[ManageService] WARNING: Initialized without database pool!');
+      console.error(
+        "[ManageService] WARNING: Initialized without database pool!"
+      );
     }
     this.config = config || GlobalConfig;
   }
 
-  public async botExistsAndIsAuthorized(botName: string, apiKey: string): Promise<true> {
+  private async resolveBotIdentifier(botIdentifier: string): Promise<string> {
+    if (!this.db) {
+      return botIdentifier;
+    }
+
+    const trimmed = (botIdentifier || "").trim();
+    if (trimmed.length === 0) {
+      return botIdentifier;
+    }
+
+    const direct = await this.db.retrieveByName(trimmed);
+    if (direct?.botName) {
+      return direct.botName;
+    }
+
+    if (/^\d+$/.test(trimmed)) {
+      const resolved = await this.db.retrieveCriabotNameById(Number(trimmed));
+      if (resolved) {
+        return resolved;
+      }
+    }
+
+    return trimmed;
+  }
+
+  private async criabotBotExists(botName: string): Promise<boolean> {
     try {
+      const response: AxiosResponse = await super.get(
+        `${this.config.CRIA_BOT_SERVER_URL}/bots/${encodeURIComponent(
+          botName
+        )}/manage/about`,
+        {
+          headers: { "x-api-key": this.config.CRIA_BOT_SERVER_TOKEN },
+          validateStatus: status => status < 500
+        }
+      );
+
+      return response.status === 200;
+    } catch {
+      return false;
+    }
+  }
+
+  private async ensureEmbedConfig(botName: string): Promise<void> {
+    if (!this.db || !botName) {
+      return;
+    }
+
+    if (await this.db.existsByName(botName)) {
+      return;
+    }
+
+    const existsInCriabot = await this.criabotBotExists(botName);
+    if (!existsInCriabot) {
+      return;
+    }
+
+    try {
+      await this.db.insert({ botName });
+    } catch (e: any) {
+      // Ignore races where another request inserted the same row.
+      if (e?.code !== "ER_DUP_ENTRY") {
+        throw e;
+      }
+    }
+  }
+
+  public async botExistsAndIsAuthorized(
+    botName: string,
+    apiKey: string
+  ): Promise<true> {
+    try {
+      const resolvedBotName = await this.resolveBotIdentifier(botName);
+
       const botExistsResponse: AxiosResponse = await super.get(
-        `${this.config.CRIA_BOT_SERVER_URL}/bots/${botName}/manage/about`,
-        { 
-          headers: { 'x-api-key': this.config.CRIA_BOT_SERVER_TOKEN },
-          validateStatus: (status) => status < 500 // Don't throw on 4xx, only 5xx
+        `${this.config.CRIA_BOT_SERVER_URL}/bots/${encodeURIComponent(
+          resolvedBotName
+        )}/manage/about`,
+        {
+          headers: { "x-api-key": this.config.CRIA_BOT_SERVER_TOKEN },
+          validateStatus: status => status < 500 // Don't throw on 4xx, only 5xx
         }
       );
 
@@ -54,45 +129,63 @@ export class ManageService extends BaseService {
       }
 
       if (botExistsResponse.status !== 200) {
-        console.error(`[ManageService] Unexpected bot exists response: status=${botExistsResponse.status}, data=${JSON.stringify(botExistsResponse.data)}`);
-        throw new CriaError(`Bot service returned status ${botExistsResponse.status} for bot '${botName}'`);
+        console.error(
+          `[ManageService] Unexpected bot exists response: status=${
+            botExistsResponse.status
+          }, data=${JSON.stringify(botExistsResponse.data)}`
+        );
+        throw new CriaError(
+          `Bot service returned status ${botExistsResponse.status} for bot '${resolvedBotName}'`
+        );
       }
 
       const authCheckResponse: AxiosResponse = await super.get(
         `${this.config.CRIA_SERVER_URL}/auth/${apiKey}/check`,
-        { 
-          headers: { 'x-api-key': this.config.CRIA_BOT_SERVER_TOKEN },
-          validateStatus: (status) => status < 500 // Don't throw on 4xx, only 5xx
+        {
+          headers: { "x-api-key": this.config.CRIA_BOT_SERVER_TOKEN },
+          validateStatus: status => status < 500 // Don't throw on 4xx, only 5xx
         }
       );
 
-      if (authCheckResponse.status === 404 || authCheckResponse.data?.authorized === false) {
+      if (
+        authCheckResponse.status === 404 ||
+        authCheckResponse.data?.authorized === false
+      ) {
         throw new UnauthorizedError();
       }
 
       if (authCheckResponse.status !== 200) {
-        throw new CriaError(`Auth check returned status ${authCheckResponse.status}`);
+        throw new CriaError(
+          `Auth check returned status ${authCheckResponse.status}`
+        );
       }
 
       return true;
     } catch (e: any) {
       // If it's already a known error type, rethrow it
-      if (e instanceof BotNotFoundError || e instanceof UnauthorizedError || e instanceof CriaError) {
+      if (
+        e instanceof BotNotFoundError ||
+        e instanceof UnauthorizedError ||
+        e instanceof CriaError
+      ) {
         throw e;
       }
-      
+
       // Handle AxiosError - check if it's a 404
       if (e.isAxiosError && e.response?.status === 404) {
         // Check which endpoint returned 404
-        const url = e.config?.url || e.request?.path || '';
-        if (url.includes('/groups/') && url.includes('/about')) {
+        const url = e.config?.url || e.request?.path || "";
+        if (url.includes("/groups/") && url.includes("/about")) {
           throw new BotNotFoundError();
-        } else if (url.includes('/auth/')) {
+        } else if (url.includes("/auth/")) {
           throw new UnauthorizedError();
         }
       }
-      
-      console.error(`[ManageService] Error in botExistsAndIsAuthorized for bot '${botName}':`, e.message);
+
+      console.error(
+        `[ManageService] Error in botExistsAndIsAuthorized for bot '${botName}':`,
+        e.message
+      );
       console.error(`[ManageService] Error stack:`, e.stack);
       throw e;
     }
@@ -100,31 +193,53 @@ export class ManageService extends BaseService {
 
   async existsBot(botName: string): Promise<boolean> {
     if (!this.db) {
-      console.error("ManageService: Database not initialized. Pool was not provided.");
+      console.error(
+        "ManageService: Database not initialized. Pool was not provided."
+      );
       throw new Error("Database not initialized");
     }
-    const result: IBotEmbed | undefined = await this.db.retrieveByName(botName);
+    const resolvedBotName = await this.resolveBotIdentifier(botName);
+    const result: IBotEmbed | undefined = await this.db.retrieveByName(
+      resolvedBotName
+    );
     return !!result;
   }
 
-  async retrieveBot(name: string, apiKey: string, skipAuth: boolean = false): Promise<IBotEmbed> {
+  async retrieveBot(
+    name: string,
+    apiKey: string,
+    skipAuth: boolean = false
+  ): Promise<IBotEmbed> {
     if (!this.db) {
-      console.error("ManageService: Database not initialized. Pool was not provided.");
+      console.error(
+        "ManageService: Database not initialized. Pool was not provided."
+      );
       throw new Error("Database not initialized");
     }
+    const resolvedName = await this.resolveBotIdentifier(name);
+
     if (!skipAuth) {
-      await this.botExistsAndIsAuthorized(name, apiKey);
+      await this.botExistsAndIsAuthorized(resolvedName, apiKey);
     }
-    const result: IBotEmbed | undefined = await this.db.retrieveByName(name);
+
+    await this.ensureEmbedConfig(resolvedName);
+
+    const result: IBotEmbed | undefined = await this.db.retrieveByName(
+      resolvedName
+    );
     if (!result) {
       throw new EmbedNotFoundError("Bot not found.");
     }
     return result;
   }
 
-  async retrieveBotByMicrosoftAppId(microsoftAppId: string): Promise<IBotEmbed> {
+  async retrieveBotByMicrosoftAppId(
+    microsoftAppId: string
+  ): Promise<IBotEmbed> {
     if (!this.db) {
-      console.error("ManageService: Database not initialized. Pool was not provided.");
+      console.error(
+        "ManageService: Database not initialized. Pool was not provided."
+      );
       throw new Error("Database not initialized");
     }
     let result: IBotEmbed | undefined;
@@ -141,7 +256,9 @@ export class ManageService extends BaseService {
 
   async insertBot(config: IBotEmbedConfig, apiKey: string): Promise<IBotEmbed> {
     if (!this.db) {
-      console.error("ManageService: Database not initialized. Pool was not provided.");
+      console.error(
+        "ManageService: Database not initialized. Pool was not provided."
+      );
       throw new Error("Database not initialized");
     }
     await this.botExistsAndIsAuthorized(config.botName, apiKey);
@@ -153,11 +270,13 @@ export class ManageService extends BaseService {
 
   async deleteBot(botName: string, apiKey: string): Promise<number> {
     if (!this.db) {
-      console.error("ManageService: Database not initialized. Pool was not provided.");
+      console.error(
+        "ManageService: Database not initialized. Pool was not provided."
+      );
       throw new Error("Database not initialized");
     }
     await this.botExistsAndIsAuthorized(botName, apiKey);
-    if (!await this.db.existsByName(botName)) {
+    if (!(await this.db.existsByName(botName))) {
       throw new EmbedNotFoundError();
     }
     return await this.db.removeByName(botName);
@@ -165,7 +284,9 @@ export class ManageService extends BaseService {
 
   async updateBot(config: IBotEmbedConfig, apiKey: string): Promise<IBotEmbed> {
     if (!this.db) {
-      console.error("ManageService: Database not initialized. Pool was not provided.");
+      console.error(
+        "ManageService: Database not initialized. Pool was not provided."
+      );
       throw new Error("Database not initialized");
     }
     await this.botExistsAndIsAuthorized(config.botName, apiKey);

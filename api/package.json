@@ -9,7 +9,8 @@
     "dev": "concurrently \"nodemon -x tsx src/server.ts\" \"nodemon -x tsoa spec-and-routes\"",
     "build": "tsoa spec-and-routes && tsc && npm run copy-dist",
     "start": "tsx ./dist/src/server.js",
-    "lint": "pretty-quick --staged",
+    "lint": "pretty-quick --check",
+    "lint:fix": "pretty-quick",
     "format": "prettier -w src",
     "test": "jest"
   },

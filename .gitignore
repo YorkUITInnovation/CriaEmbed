@@ -20,6 +20,9 @@ dist/
 dist.zip
 *.js.map
 *.d.ts
+package-lock.json
+pnpm-lock.yaml
+
 
 # Environment variables
 .env
