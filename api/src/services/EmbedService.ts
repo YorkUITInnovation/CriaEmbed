@@ -21,6 +21,7 @@ import MessageCache from "../database/redis/controllers/MessageCache.js";
 import { parse } from "node-html-parser";
 import TrackingCache from "../database/redis/controllers/TrackingCache.js";
 import { getMySQLPool } from "../database/mysql/pool.js";
+import { buildEmbedCriabotPrompt } from "./embedPrompt.js";
 
 const EMBED_BASE_SCRIPT: string = fs
   .readFileSync(path.join(Config.ASSETS_FOLDER_PATH, "/public/loader.js"))
@@ -168,10 +169,13 @@ export class EmbedService extends BaseService {
         criabotChatId = chatId;
       }
 
+      const trackingData = await this.trackingCache.get(chatId);
+      const criabotPrompt = buildEmbedCriabotPrompt(prompt, trackingData);
+
       let response: AxiosResponse = await this.postCriabotChat(
         criabotChatId,
         canonicalBotName,
-        prompt
+        criabotPrompt
       );
 
       // If Criabot does not know this chat id yet, create one and retry once.
@@ -182,7 +186,7 @@ export class EmbedService extends BaseService {
         response = await this.postCriabotChat(
           criabotChatId,
           canonicalBotName,
-          prompt
+          criabotPrompt
         );
       }
 

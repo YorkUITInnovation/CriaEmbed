@@ -1,6 +1,7 @@
 import { EmbedService } from "../../src/services/EmbedService";
 import { Config } from "../../src/config";
 import { VectorStoreService } from "../../src/services/VectorStoreService"; // Import for typing the mock
+import { buildEmbedCriabotPrompt } from "../../src/services/embedPrompt";
 
 // Mock BotEmbed dependency
 jest.mock("../../src/database/mysql/controllers/BotEmbed", () => ({
@@ -228,6 +229,17 @@ describe("EmbedService", () => {
         botTrustWarning: null,
         botContact: null
       });
+      mockTrackingCache.get.mockResolvedValueOnce(null).mockResolvedValueOnce({
+        courseId: 13,
+        courseName: "Art of Art",
+        name: "I am a student and my name is Alex"
+      });
+
+      const enrichedPrompt = buildEmbedCriabotPrompt("hello", {
+        courseId: 13,
+        courseName: "Art of Art",
+        name: "I am a student and my name is Alex"
+      });
 
       // Criabot chat endpoint returns a valid structure
       mockedAxios.post.mockResolvedValueOnce({
@@ -257,7 +269,7 @@ describe("EmbedService", () => {
         `${Config.CRIA_BOT_SERVER_URL}/bots/chats/chat-1/send`,
         {
           bot_name: "mock-bot",
-          prompt: "hello"
+          prompt: enrichedPrompt
         },
         expect.objectContaining({
           headers: { "x-api-key": Config.CRIA_BOT_SERVER_TOKEN }
@@ -281,6 +293,9 @@ describe("EmbedService", () => {
         botTrustWarning: null,
         botContact: null
       });
+      mockTrackingCache.get
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null);
 
       mockedAxios.post.mockResolvedValueOnce({
         status: 200,
@@ -309,7 +324,7 @@ describe("EmbedService", () => {
         `${Config.CRIA_BOT_SERVER_URL}/bots/chats/chat-2/send`,
         {
           bot_name: "resolved-bot-name",
-          prompt: "hello again"
+          prompt: "q: hello again"
         },
         expect.objectContaining({
           headers: { "x-api-key": Config.CRIA_BOT_SERVER_TOKEN }
