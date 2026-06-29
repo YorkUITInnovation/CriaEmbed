@@ -43,14 +43,17 @@ const MessageContainer = styled.div`
 const BotMessage = styled.span`
   font-size: 14px;
   color: #424242;
-  padding: 8px;
+  padding: 10px 12px;
   background: white;
-  box-shadow: 1px 2px 5px 1px rgba(0, 0, 0, 0.13);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06),
+    0 4px 14px rgba(15, 23, 42, 0.04);
   word-break: break-word;
-  display: inline;
+  display: inline-block;
+  max-width: calc(100% - 42px);
   overflow: hidden;
   margin-right: 32px;
-  border-radius: 8px 8px 8px 2px;
+  border-radius: 12px 12px 12px 4px;
+  border: 1px solid rgba(0, 0, 0, 0.04);
 
   @media print {
     color: ${(props) => pickFontColorFromBg(props.$bgColor)};

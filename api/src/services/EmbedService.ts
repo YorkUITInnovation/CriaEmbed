@@ -614,4 +614,89 @@ export class EmbedService extends BaseService {
 
     return responseData;
   }
+
+  private async postCriabotChatStream(
+    criabotChatId: string,
+    canonicalBotName: string,
+    prompt: string
+  ): Promise<AxiosResponse> {
+    const chatUrl = `${
+      Config.CRIA_BOT_SERVER_URL
+    }/bots/chats/${encodeURIComponent(criabotChatId)}/stream`;
+
+    return this.post(
+      chatUrl,
+      {
+        bot_name: canonicalBotName,
+        prompt,
+        extra_bots: []
+      },
+      {
+        headers: {
+          "x-api-key": Config.CRIA_BOT_SERVER_TOKEN,
+          Accept: "text/event-stream"
+        },
+        responseType: "stream",
+        validateStatus: status => status < 500
+      }
+    );
+  }
+
+  async streamEmbedChat(
+    botName: string,
+    chatId: string,
+    prompt: string
+  ): Promise<AxiosResponse> {
+    const botConfig: IBotEmbed = await this.manageService.retrieveBot(
+      botName,
+      "",
+      true
+    );
+    const canonicalBotName = botConfig.botName;
+
+    try {
+      let criabotChatId = await this.getMappedCriabotChatId(chatId);
+      if (!criabotChatId) {
+        criabotChatId = chatId;
+      }
+
+      const trackingData = await this.trackingCache.get(chatId);
+      const criabotPrompt = buildEmbedCriabotPrompt(prompt, trackingData);
+
+      let response = await this.postCriabotChatStream(
+        criabotChatId,
+        canonicalBotName,
+        criabotPrompt
+      );
+
+      // If Criabot does not know this chat id yet, create one and retry once.
+      if (response?.status === 404) {
+        const startedChatId = await this.startCriabotChat();
+        await this.setMappedCriabotChatId(chatId, startedChatId);
+        criabotChatId = startedChatId;
+
+        response = await this.postCriabotChatStream(
+          criabotChatId,
+          canonicalBotName,
+          criabotPrompt
+        );
+      }
+
+      return response;
+    } catch (error: any) {
+      if (debugEnabled()) {
+        console.error(
+          "[EmbedService] Criabot stream chat error:",
+          error?.response?.status,
+          error?.response?.data || error?.message
+        );
+      }
+
+      const message = error?.response?.status
+        ? `Criabot returned HTTP ${error.response.status}`
+        : "Criabot service is temporarily unavailable. Please try again later.";
+
+      throw new CriaError(message);
+    }
+  }
 }

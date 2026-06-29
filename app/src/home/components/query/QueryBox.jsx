@@ -1,84 +1,85 @@
-import {Component} from "react";
-import {styled} from "styled-components";
-import {getTheme} from "../chat/ChatHeader.jsx";
+import { Component } from "react";
+import { styled } from "styled-components";
+import { getTheme } from "../chat/ChatHeader.jsx";
 import QueryArea from "./QueryArea.jsx";
 import Dictaphone from "./buttons/Dictaphone.jsx";
-import {ResetChat} from "./buttons/ResetChat.jsx";
-import {SendMessage} from "./buttons/SendMessage.jsx";
+import { ResetChat } from "./buttons/ResetChat.jsx";
+import { SendMessage } from "./buttons/SendMessage.jsx";
 import SpeechAutoPlay from "./buttons/SpeechAutoPlay.jsx";
-import {StartText} from "../chat/ChatSystemMessage.jsx";
+import { StartText } from "../chat/ChatSystemMessage.jsx";
 import BotTrustWarning from "./buttons/BotTrustWarning.jsx";
 import PoweredByAura from "./buttons/PoweredByAura.jsx";
+import StreamingChatHandler from "../../utils/StreamingChatHandler.js";
 
 const OuterContainer = styled.div`
-    width: 100%;
+  width: 100%;
 `;
 
 const SubOuterContainer = styled.div`
-    margin: 0 15px 15px 15px;
+  margin: 0 15px 15px 15px;
 `;
 
 const Container = styled.div`
-    position: relative;
-    border-radius: 10px;
-    border: 3px solid #e8e8e8;
-    display: flex;
-    align-items: stretch;
-    height: fit-content;
-    flex-direction: column;
+  position: relative;
+  border-radius: 10px;
+  border: 3px solid #e8e8e8;
+  display: flex;
+  align-items: stretch;
+  height: fit-content;
+  flex-direction: column;
 
-    &:focus-within {
-        border-color: #c7d4fa;
+  &:focus-within {
+    border-color: #c7d4fa;
 
-        svg {
-            color: #697783
-        }
+    svg {
+      color: #697783;
     }
-
+  }
 `;
 
 const TrustWarning = styled.span`
-    width: 100%;
-    display: flex;
-    justify-content: center;
+  width: 100%;
+  display: flex;
+  justify-content: center;
 `;
 
 const ButtonArea = styled.div`
-    display: flex;
-    justify-content: space-between;
-    margin-left: 8px;
-    margin-bottom: 5px;
-    margin-top: 10px;
-    margin-right: 8px;
+  display: flex;
+  justify-content: space-between;
+  margin-left: 8px;
+  margin-bottom: 5px;
+  margin-top: 10px;
+  margin-right: 8px;
 `;
-
 
 let ChatExpiredCheckIntervalId;
 
 export async function checkChatExpired() {
-  return await fetch(`${window.Cria.chatApiUrl}/chats/${window.Cria.chatId}/exists`);
+  return await fetch(
+    `${window.Cria.chatApiUrl}/chats/${window.Cria.chatId}/exists`
+  );
 }
 
 export default class QueryBox extends Component {
-
   static CHAT_TIMEOUT = 60 * 1000;
 
   #sendButtonId = "query-send-button";
   #mounted = true;
   #chatExpiredCheckInterval = 120 * 1000;
   #chatExpired = false;
-  state = {isLoading: false};
+  state = { isLoading: false };
 
   componentDidMount() {
-
     // Only on mount
     if (!this.#mounted) return;
     this.#mounted = false;
 
-    clearInterval(ChatExpiredCheckIntervalId)
-    ChatExpiredCheckIntervalId = setInterval(this.checkChatExpired.bind(this), this.#chatExpiredCheckInterval);
+    clearInterval(ChatExpiredCheckIntervalId);
+    ChatExpiredCheckIntervalId = setInterval(
+      this.checkChatExpired.bind(this),
+      this.#chatExpiredCheckInterval
+    );
     document.addEventListener("chatDispatch", this.onChatDispatch.bind(this));
-
   }
 
   onChatDispatch(event) {
@@ -96,11 +97,10 @@ export default class QueryBox extends Component {
     this.sendChat(content)
       .catch(() => this.setLoading(false))
       .finally(() => this.setLoading(false));
-
   }
 
   setLoading(isLoading) {
-    this.setState({isLoading: isLoading});
+    this.setState({ isLoading: isLoading });
   }
 
   onChatTimeout() {
@@ -117,10 +117,9 @@ export default class QueryBox extends Component {
     const response = await checkChatExpired();
 
     try {
-      const json = await response.json() || {};
+      const json = (await response.json()) || {};
 
       if (json.code === "SUCCESS") {
-
         // Case 1) Chat expired
         if (json.exists === false) {
           this.#chatExpired = true;
@@ -135,25 +134,145 @@ export default class QueryBox extends Component {
         // Case 3) Invalid response
         else {
           // noinspection ExceptionCaughtLocallyJS
-          throw new Error("Invalid!")
+          throw new Error("Invalid!");
         }
       }
-
     } catch (e) {
       // If there's an error, clear the interval rather than risk spamming forever
       clearInterval(ChatExpiredCheckIntervalId);
     }
-
   }
 
   async sendChat(content) {
-
     // Set timeout
     this.setLoading(true);
     setTimeout(this.onChatTimeout.bind(this), QueryBox.CHAT_TIMEOUT);
 
-    document.dispatchEvent(new CustomEvent("chatSend", {detail: content}));
+    document.dispatchEvent(new CustomEvent("chatSend", { detail: content }));
 
+    // Try streaming first, fall back to regular send if not available
+    const useStreaming = true; // Can be controlled by feature flag
+
+    if (useStreaming) {
+      return this.sendChatStreaming(content);
+    } else {
+      return this.sendChatRegular(content);
+    }
+  }
+
+  async sendChatStreaming(content) {
+    try {
+      const handler = new StreamingChatHandler(
+        window.Cria.botId,
+        window.Cria.chatId,
+        window.Cria.chatApiUrl
+      );
+
+      const result = await handler.sendStream(content, {
+        onStatus: (engine, state, message) => {
+          // Emit status event - will be consumed by ChatList
+          document.dispatchEvent(
+            new CustomEvent("chatStatus", {
+              detail: { engine, state, message },
+            })
+          );
+        },
+        onChunk: (chunk) => {
+          // Emit chunk event
+          document.dispatchEvent(
+            new CustomEvent("chatChunk", {
+              detail: chunk,
+            })
+          );
+        },
+        onCitations: (sources) => {
+          // Emit citations event
+          document.dispatchEvent(
+            new CustomEvent("chatCitations", {
+              detail: sources,
+            })
+          );
+        },
+        onError: (error) => {
+          console.error("Streaming error:", error);
+          // Emit a fallback chatReply so existing UI flow unlocks input and renders error.
+          document.dispatchEvent(
+            new CustomEvent("chatReply", {
+              detail: {
+                code: "ERROR",
+                reply: null,
+                replyId: null,
+                relatedPrompts: null,
+                verifiedResponse: null,
+                message: error.message,
+              },
+            })
+          );
+          document.dispatchEvent(
+            new CustomEvent("chatStreamError", {
+              detail: { message: error.message },
+            })
+          );
+        },
+        onComplete: (result) => {
+          if (result.errors.length > 0) {
+            const errorMsg = result.errors.join("; ");
+            document.dispatchEvent(
+              new CustomEvent("chatReply", {
+                detail: {
+                  code: "ERROR",
+                  reply: null,
+                  replyId: null,
+                  relatedPrompts: null,
+                  verifiedResponse: null,
+                  message: errorMsg,
+                },
+              })
+            );
+            document.dispatchEvent(
+              new CustomEvent("chatStreamError", {
+                detail: { message: errorMsg },
+              })
+            );
+            return;
+          }
+
+          if (!result.message?.trim()) {
+            // Empty SSE payload usually means the stream proxy failed; fall back.
+            this.sendChatRegular(content);
+            return;
+          }
+
+          document.dispatchEvent(
+            new CustomEvent("chatReply", {
+              detail: {
+                code: "SUCCESS",
+                reply: result.message || null,
+                replyId: null,
+                relatedPrompts: null,
+                verifiedResponse: null,
+                elapsedMs: result.elapsed_ms,
+                citations: result.citations,
+              },
+            })
+          );
+          document.dispatchEvent(
+            new CustomEvent("chatStreamComplete", {
+              detail: result,
+            })
+          );
+        },
+      });
+
+      return result;
+    } catch (error) {
+      console.error("Streaming error:", error);
+      // Fall back to regular send
+      return this.sendChatRegular(content);
+    }
+  }
+
+  async sendChatRegular(content) {
     let response;
     try {
       response = await fetch(
@@ -161,13 +280,13 @@ export default class QueryBox extends Component {
         {
           method: "POST",
           headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
+            Accept: "application/json",
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({
             chatId: window.Cria.chatId,
-            prompt: content
-          })
+            prompt: content,
+          }),
         }
       );
     } catch (ex) {
@@ -175,51 +294,49 @@ export default class QueryBox extends Component {
       return;
     }
 
-    const json = await response.json()
+    const json = await response.json();
 
     if (json?.code === "NOT_FOUND") {
-      document.dispatchEvent(new CustomEvent("chatExpired", {detail: json}));
+      document.dispatchEvent(new CustomEvent("chatExpired", { detail: json }));
       return;
     }
 
     // Log errors
     if (json?.code !== "SUCCESS") {
       console.error("Chat Send Failed:", json);
-      json.reply = `Chat failed to send due to an error. Please try again later.`
+      json.reply = `Chat failed to send due to an error. Please try again later.`;
     }
 
-    document.dispatchEvent(new CustomEvent("chatReply", {detail: json}));
-
+    document.dispatchEvent(new CustomEvent("chatReply", { detail: json }));
   }
 
   render() {
-
     return (
       <OuterContainer id={"queryBox"}>
         <SubOuterContainer>
-          <BotTrustWarning/>
+          <BotTrustWarning />
           <Container $boxTheme={this.getQueryBoxTheme()}>
-            <QueryArea isLoading={this.state.isLoading}/>
+            <QueryArea isLoading={this.state.isLoading} />
             <ButtonArea>
               <div>
-                <ResetChat
-                  id={"reset-chat-button"}
-                />
+                <ResetChat id={"reset-chat-button"} />
               </div>
               <div>
-                <SpeechAutoPlay/>
-                <Dictaphone/>
+                <SpeechAutoPlay />
+                <Dictaphone />
                 <SendMessage
                   id={this.#sendButtonId}
-                  onClick={() => document.dispatchEvent(new CustomEvent("sendButtonClicked"))}
+                  onClick={() =>
+                    document.dispatchEvent(new CustomEvent("sendButtonClicked"))
+                  }
                   className={this.state.isLoading ? "send-woosh" : ""}
                 />
               </div>
             </ButtonArea>
           </Container>
-          <PoweredByAura/>
+          <PoweredByAura />
         </SubOuterContainer>
       </OuterContainer>
-    )
+    );
   }
 }
