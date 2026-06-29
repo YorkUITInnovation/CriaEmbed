@@ -1,44 +1,42 @@
-import {Middlewares, Path, Post, Route, Tags} from "tsoa";
-import {BaseController} from "../../models/BaseController.js";
-import {EmbedService} from "../../services/EmbedService.js";
-import {CreateChatResponse, CriaError, CriaResponse} from "../../models/CriaResponse.js";
-import {RATE_LIMIT_CHAT_ALL_HANDLERS} from "../../models/LimitGenerator.js";
-
+import { Middlewares, Path, Post, Route, Tags } from "tsoa";
+import { BaseController } from "../../models/BaseController.js";
+import { EmbedService } from "../../services/EmbedService.js";
+import {
+  CreateChatResponse,
+  CriaError,
+  CriaResponse
+} from "../../models/CriaResponse.js";
+import { RATE_LIMIT_CHAT_ALL_HANDLERS } from "../../models/LimitGenerator.js";
 
 @Tags("Chats")
 @Route("/chats/{chatId}/create")
 export class ChatsCreateController extends BaseController {
-
-  constructor(
-      public service: EmbedService = new EmbedService()
-  ) {
+  constructor(public service: EmbedService = new EmbedService()) {
     super();
   }
 
   @Post()
   @Middlewares(...RATE_LIMIT_CHAT_ALL_HANDLERS)
   public async create(
-      // The PREVIOUS chat ID
-      @Path("chatId") previousChatId: string,
+    // The PREVIOUS chat ID
+    @Path("chatId") previousChatId: string
   ): Promise<CreateChatResponse> {
-
     try {
       const newChatId: string = await this.service.createChat();
       await this.service.transferTrackingInfo(previousChatId, newChatId);
 
       return {
         timestamp: Date.now().toString(),
-        status: 404,
+        status: 200,
         code: "SUCCESS",
         message: "Created a chat!",
         chatId: newChatId
-      }
-
+      };
     } catch (e: any) {
       switch (e.constructor) {
         case CriaError:
           this.setStatus(e.payload.status, e);
-          return {chatId: null, ...(e.payload as CriaResponse)};
+          return { chatId: null, ...(e.payload as CriaResponse) };
         default:
           this.setStatus(500, e);
           return {
@@ -47,11 +45,8 @@ export class ChatsCreateController extends BaseController {
             code: "ERROR",
             message: "Error creating the chat!",
             chatId: null
-          }
+          };
       }
-
     }
-
   }
-
 }

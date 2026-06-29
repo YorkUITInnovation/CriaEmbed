@@ -1,40 +1,47 @@
-import {Example, Get, Middlewares, Path, Produces, Request, Route, Tags} from "tsoa";
-import {BaseController} from "../../../models/BaseController.js";
-import {EmbedService} from "../../../services/EmbedService.js";
-import {RATE_LIMIT_EMBED_ALL_HANDLERS} from "../../../models/LimitGenerator.js";
+import {
+  Example,
+  Get,
+  Middlewares,
+  Path,
+  Produces,
+  Request,
+  Route,
+  Tags
+} from "tsoa";
+import { BaseController } from "../../../models/BaseController.js";
+import { EmbedService } from "../../../services/EmbedService.js";
+import { RATE_LIMIT_EMBED_ALL_HANDLERS } from "../../../models/LimitGenerator.js";
 import fs from "fs";
 import path from "path";
-import {Config} from "../../../config.js";
+import { Config } from "../../../config.js";
 import e from "express";
 
-
-const EMBED_BASE_SCRIPT: string = fs.readFileSync(
-    path.join(Config.ASSETS_FOLDER_PATH, "/public/inline/embed.js")
-).toString();
+const EMBED_BASE_SCRIPT: string = fs
+  .readFileSync(path.join(Config.ASSETS_FOLDER_PATH, "/public/inline/embed.js"))
+  .toString();
 
 @Route("/embed/{botId}/inline.js")
 export class EmbedInlineJSController extends BaseController {
-
-  constructor(
-      public service: EmbedService = new EmbedService()
-  ) {
+  constructor(public service: EmbedService = new EmbedService()) {
     super();
   }
 
   @Get()
   @Tags("Embed")
   @Example<string>(
-      "(async function(){console.log('Cria popup script')})()", "SUCCESS",
+    "(async function(){console.log('Cria popup script')})()",
+    "SUCCESS"
   )
   @Produces("application/javascript")
   @Middlewares(...RATE_LIMIT_EMBED_ALL_HANDLERS)
   public async getInlineEmbed(
-      @Path() botId: string,
-      @Request() request: e.Request,
+    @Path() botId: string,
+    @Request() request: e.Request
   ): Promise<string> {
-
+    const botIdLiteral = JSON.stringify(botId);
     const embedPopupScript = (EMBED_BASE_SCRIPT + " ")
-        .replaceAll(/\$botId/g, botId)
+      .replaceAll(/\$botIdLiteral/g, botIdLiteral)
+      .replaceAll(/\$botId/g, botId);
 
     this.setStatus(200);
 
@@ -43,11 +50,11 @@ export class EmbedInlineJSController extends BaseController {
     this.setHeader("Expires", "0");
 
     // Tsoa plaintext is broken, we gotta hack it
-    request.res?.setHeader("Content-Type", "application/javascript; charset=utf-8")
+    request.res?.setHeader(
+      "Content-Type",
+      "application/javascript; charset=utf-8"
+    );
     request.res?.send(embedPopupScript);
     return "";
-
   }
-
-
 }

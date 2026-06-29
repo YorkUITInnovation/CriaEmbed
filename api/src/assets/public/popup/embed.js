@@ -1,13 +1,15 @@
 {
-  const botId = $botId;
+  const botId = $botIdLiteral;
   const hideLauncher = $hideLauncher;
 
-  !async function () {
+  !(async function () {
     window.CRIA ||= {};
     const chatConfig = window.CRIA[botId];
 
     const hasCriaStyles = !!document.getElementById("cria-styles");
-    const rawHTML = await fetch(chatConfig.chatApiUrl + `/embed/${botId}/popup.html`);
+    const rawHTML = await fetch(
+      chatConfig.chatApiUrl + `/embed/${botId}/popup.html`
+    );
 
     // Inject Popup HTML
     const htmlInjection = document.createElement("div");
@@ -21,16 +23,24 @@
 
     // Inject CSS, but only once (e.g. if multiple bots on the page)
     if (!hasCriaStyles) {
-      const rawCSS = await fetch(chatConfig.chatApiUrl + "/public/popup/embed.css?cache=" + Math.random().toString());
+      const rawCSS = await fetch(
+        chatConfig.chatApiUrl +
+          "/public/popup/embed.css?cache=" +
+          Math.random().toString()
+      );
       const cssInjection = document.createElement("style");
-      document.querySelector(`.cria-wrapper[botId='${botId}']`).appendChild(cssInjection);
+      document
+        .querySelector(`.cria-wrapper[botId='${botId}']`)
+        .appendChild(cssInjection);
       cssInjection.id = "cria-styles";
       cssInjection.innerHTML = await rawCSS.text();
     }
 
     // Set custom Popup colour
     if (chatConfig.embedTheme) {
-      const criaLauncher = document.querySelector(`.cria-launcher[botId='${botId}']`);
+      const criaLauncher = document.querySelector(
+        `.cria-launcher[botId='${botId}']`
+      );
       criaLauncher.style.borderColor = chatConfig.embedTheme;
     }
 
@@ -39,15 +49,17 @@
     const criaEmbedURL = new URL(chatConfig.webAppUrl);
 
     for (const prop of ["botId", "chatId", "webAppUrl", "chatApiUrl"]) {
-      if ((typeof value !== 'function')) {
-        criaEmbedURL.searchParams.set(prop, encodeURIComponent(chatConfig[prop]));
+      if (typeof chatConfig[prop] !== "function" && chatConfig[prop] != null) {
+        criaEmbedURL.searchParams.set(prop, String(chatConfig[prop]));
       }
     }
 
     criaEmbed.src = criaEmbedURL.toString();
 
     // Inject embed image
-    const criaEmbedImage = document.querySelector(`.cria-bot-icon[botId='${botId}']`);
+    const criaEmbedImage = document.querySelector(
+      `.cria-bot-icon[botId='${botId}']`
+    );
     criaEmbedImage.src = chatConfig.botIconUrl;
 
     if (chatConfig.embedHoverTooltip != null) {
@@ -63,9 +75,11 @@
 
     // Set embed location
     setEmbedPosition(chatConfig.embedPosition || "BL");
-    console.info(`Loaded Cria Embed for "${chatConfig.botName}" (${chatConfig.botId}) bot!`);
+    console.info(
+      `Loaded Cria Embed for "${chatConfig.botName}" (${chatConfig.botId}) bot!`
+    );
     document.getElementById("cria-embed-loader")?.remove();
-  }();
+  })();
 
   function isEmbedEnabled() {
     const criaChat = document.querySelector(`.cria-chat[botId='${botId}']`);
@@ -76,16 +90,16 @@
    * @param {boolean} event.detail
    */
   window.addEventListener(
-    "message", (event) => {
+    "message",
+    event => {
       try {
         let data = JSON.parse(event.data) || {};
         if (data.action === "criaSetEmbedEnabled") {
           setEmbedEnabled(data.value);
         }
-      } catch (ex) {
-      }
+      } catch (ex) {}
     },
-    false,
+    false
   );
 
   /**
@@ -93,18 +107,24 @@
    */
   function setEmbedEnabled(isEnabled) {
     const criaChat = document.querySelector(`.cria-chat[botId='${botId}']`);
-    const criaLauncher = document.querySelector(`.cria-launcher[botId='${botId}']`);
-    const criaWrapper = document.querySelector(`.cria-wrapper[botId='${botId}']`);
+    const criaLauncher = document.querySelector(
+      `.cria-launcher[botId='${botId}']`
+    );
+    const criaWrapper = document.querySelector(
+      `.cria-wrapper[botId='${botId}']`
+    );
     const htmlBody = document.body;
     const newState = isEnabled ? "true" : "false";
     criaChat.setAttribute("enabled", newState);
     criaLauncher.setAttribute("enabled", newState);
     criaWrapper.setAttribute("enabled", newState);
-    htmlBody.setAttribute('cria-enabled', newState);
+    htmlBody.setAttribute("cria-enabled", newState);
   }
 
   function setLauncherVisible(isVisible) {
-    const criaLauncher = document.querySelector(`.cria-launcher[botId='${botId}']`);
+    const criaLauncher = document.querySelector(
+      `.cria-launcher[botId='${botId}']`
+    );
     criaLauncher.style.display = isVisible ? "flex" : "none";
   }
 
@@ -113,26 +133,31 @@
     2: "BR",
     3: "TR",
     4: "TL"
-  }
+  };
 
   function setEmbedPosition(location) {
+    const raw = location == null ? "" : String(location).trim();
+    const normalized = raw.toUpperCase();
+    const position =
+      EMBED_POSITIONS[raw] || EMBED_POSITIONS[normalized] || normalized;
 
     // Check if valid location
-    if (!Object.keys(EMBED_POSITIONS).includes(location?.toString())) {
+    if (!Object.values(EMBED_POSITIONS).includes(position)) {
       throw new Error("Invalid embed position!");
     }
 
     // Set the new location
-    const criaWrapper = document.querySelector(`.cria-wrapper[botId='${botId}']`);
+    const criaWrapper = document.querySelector(
+      `.cria-wrapper[botId='${botId}']`
+    );
     criaWrapper.classList.remove(...Object.values(EMBED_POSITIONS));
-    criaWrapper.classList.add(EMBED_POSITIONS[location]);
-
+    criaWrapper.classList.add(position);
   }
 
   class ResizableChat {
     #dragging = false;
     #dragId = undefined;
-    #dragInitPos = {x: undefined, y: undefined};
+    #dragInitPos = { x: undefined, y: undefined };
     #overlaySelector = `.cria-chat-overlay[botId='${botId}']`;
     #minWidth = 300;
     #minHeight = 400;
@@ -177,7 +202,7 @@
       // Ensure the selected element has a class matching one of the resizable handlers and the current botId
       this.#dragging = true;
       this.#dragId = event.target.className; // Use the class name instead of id
-      this.#dragInitPos = {x: event.clientX, y: event.clientY};
+      this.#dragInitPos = { x: event.clientX, y: event.clientY };
       document.querySelector(this.#overlaySelector).style.pointerEvents = "all";
     }
 
@@ -185,8 +210,9 @@
     onMouseUpEvent() {
       this.#dragging = false;
       this.#dragId = undefined;
-      this.#dragInitPos = {x: undefined, y: undefined};
-      document.querySelector(this.#overlaySelector).style.pointerEvents = "none";
+      this.#dragInitPos = { x: undefined, y: undefined };
+      document.querySelector(this.#overlaySelector).style.pointerEvents =
+        "none";
     }
 
     /** On mouse move event */
@@ -216,7 +242,8 @@
 
     /** Horizontally resize */
     onHorizontalUpdate(clientX, clientY) {
-      const changeX = (clientX - this.#dragInitPos.x) * this.#dragIdMultiplier[this.#dragId];
+      const changeX =
+        (clientX - this.#dragInitPos.x) * this.#dragIdMultiplier[this.#dragId];
       const criaEmbed = document.querySelector(`.cria-embed[botId='${botId}']`);
 
       const embedWidth = Math.min(
@@ -225,12 +252,13 @@
       );
 
       criaEmbed.style.width = `${embedWidth}px`;
-      this.#dragInitPos = {x: clientX, y: clientY};
+      this.#dragInitPos = { x: clientX, y: clientY };
     }
 
     /** Vertically resize */
     onVerticalUpdate(clientX, clientY) {
-      const changeY = (this.#dragInitPos.y - clientY) * this.#dragIdMultiplier[this.#dragId];
+      const changeY =
+        (this.#dragInitPos.y - clientY) * this.#dragIdMultiplier[this.#dragId];
       const criaEmbed = document.querySelector(`.cria-embed[botId='${botId}']`);
 
       const embedHeight = Math.min(
@@ -239,14 +267,13 @@
       );
 
       criaEmbed.style.height = `${embedHeight}px`;
-      this.#dragInitPos = {x: clientX, y: clientY};
+      this.#dragInitPos = { x: clientX, y: clientY };
     }
   }
 
-  window.CRIA["$botId"].setLauncherVisible = setLauncherVisible;
-  window.CRIA["$botId"].isEmbedEnabled = isEmbedEnabled;
-  window.CRIA["$botId"].setEmbedEnabled = setEmbedEnabled;
-  window.CRIA["$botId"].setEmbedLocation = setEmbedPosition;
-  window.CRIA["$botId"].resizableChat = new ResizableChat();
-
+  window.CRIA[botId].setLauncherVisible = setLauncherVisible;
+  window.CRIA[botId].isEmbedEnabled = isEmbedEnabled;
+  window.CRIA[botId].setEmbedEnabled = setEmbedEnabled;
+  window.CRIA[botId].setEmbedLocation = setEmbedPosition;
+  window.CRIA[botId].resizableChat = new ResizableChat();
 }
