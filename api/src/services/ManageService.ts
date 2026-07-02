@@ -107,6 +107,47 @@ export class ManageService extends BaseService {
     }
   }
 
+  // Bot-independent API key check — same `/auth/{apiKey}/check` call used by
+  // botExistsAndIsAuthorized, without the bot-existence lookup. For endpoints
+  // that aren't scoped to a specific bot (e.g. the vector store CRUD routes).
+  public async isApiKeyAuthorized(apiKey: string): Promise<true> {
+    try {
+      const authCheckResponse: AxiosResponse = await super.get(
+        `${this.config.CRIA_SERVER_URL}/auth/${apiKey}/check`,
+        {
+          headers: { "x-api-key": this.config.CRIA_BOT_SERVER_TOKEN },
+          validateStatus: status => status < 500 // Don't throw on 4xx, only 5xx
+        }
+      );
+
+      if (
+        authCheckResponse.status === 404 ||
+        authCheckResponse.data?.authorized === false
+      ) {
+        throw new UnauthorizedError();
+      }
+
+      if (authCheckResponse.status !== 200) {
+        throw new CriaError(
+          `Auth check returned status ${authCheckResponse.status}`
+        );
+      }
+
+      return true;
+    } catch (e: any) {
+      if (e instanceof UnauthorizedError || e instanceof CriaError) {
+        throw e;
+      }
+
+      if (e.isAxiosError && e.response?.status === 404) {
+        throw new UnauthorizedError();
+      }
+
+      console.error(`[ManageService] Error in isApiKeyAuthorized:`, e.message);
+      throw e;
+    }
+  }
+
   public async botExistsAndIsAuthorized(
     botName: string,
     apiKey: string
@@ -139,26 +180,7 @@ export class ManageService extends BaseService {
         );
       }
 
-      const authCheckResponse: AxiosResponse = await super.get(
-        `${this.config.CRIA_SERVER_URL}/auth/${apiKey}/check`,
-        {
-          headers: { "x-api-key": this.config.CRIA_BOT_SERVER_TOKEN },
-          validateStatus: status => status < 500 // Don't throw on 4xx, only 5xx
-        }
-      );
-
-      if (
-        authCheckResponse.status === 404 ||
-        authCheckResponse.data?.authorized === false
-      ) {
-        throw new UnauthorizedError();
-      }
-
-      if (authCheckResponse.status !== 200) {
-        throw new CriaError(
-          `Auth check returned status ${authCheckResponse.status}`
-        );
-      }
+      await this.isApiKeyAuthorized(apiKey);
 
       return true;
     } catch (e: any) {

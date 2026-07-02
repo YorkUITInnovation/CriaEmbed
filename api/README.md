@@ -9,6 +9,7 @@ This service is configured via environment variables. For local development, cre
 **Note:** For local development, service hosts (like `MYSQL_HOST` or `REDIS_HOST`) should be set to `localhost` or `127.0.0.1` and configured with the correct ports, assuming you are running the database services on your host machine.
 
 ### `.env` Template
+
 ```
 # --- Service Ports & URLs
 CRIA_SERVER_URL="http://localhost/"
@@ -21,12 +22,20 @@ MYSQL_HOST=localhost
 MYSQL_PORT=3306
 MYSQL_USERNAME=root
 MYSQL_PASSWORD=cria
-MYSQL_DATABASE=criabot
+MYSQL_DATABASE=criaembed
 
 REDIS_HOST=localhost
 REDIS_PORT=6379
 REDIS_USERNAME=default
 REDIS_PASSWORD=password
+
+# --- Elasticsearch (used by the standalone vector-store upsert/search endpoints)
+ELASTICSEARCH_HOST=localhost
+ELASTICSEARCH_PORT=9200
+ELASTICSEARCH_USERNAME=elastic
+ELASTICSEARCH_PASSWORD=elastic
+ELASTICSEARCH_INDEX=criaembed
+RAGFLOW_EMBED_DIM=768
 
 # --- API Keys & Tokens (replace with actual values)
 CRIA_SERVER_TOKEN=<your_cria_server_token>
@@ -49,11 +58,13 @@ RATE_LIMIT_DAY_MAX=1000
 ## Local Development
 
 1.  **Install dependencies from the `/api` directory:**
+
     ```sh
     npm install
     ```
 
 2.  **Run the test suite:**
+
     ```sh
     npm run test
     ```
