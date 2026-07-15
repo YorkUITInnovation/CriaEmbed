@@ -1,6 +1,7 @@
 import { Component, isValidElement } from "react";
 import { styled } from "styled-components";
 import twemoji from "twemoji";
+import DOMPurify from "dompurify";
 import { getTheme } from "./ChatHeader.jsx";
 import SpeechButton from "./buttons/SpeechButton.jsx";
 import CopyButton from "./buttons/CopyButton.jsx";
@@ -145,13 +146,17 @@ const ReplyContent = styled.span`
 export function parseHTMLEmojis(html) {
   if (typeof html !== "string") return html;
 
-  // String element
-  return twemoji
+  const withEmojis = twemoji
     .parse(html, {
       base: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/",
     })
     .replaceAll(/\/> /g, "/>&nbsp;")
     .replaceAll(/ <img/g, "&nbsp;<img");
+
+  // Reply HTML comes from the model/RAG pipeline, so sanitize before it ever
+  // reaches dangerouslySetInnerHTML - strips <script>, event handlers and
+  // javascript: URLs while keeping normal formatting and the emoji <img> tags.
+  return DOMPurify.sanitize(withEmojis);
 }
 
 const CommandContextContainer = styled.div`

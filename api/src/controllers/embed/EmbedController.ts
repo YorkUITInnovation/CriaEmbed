@@ -102,7 +102,15 @@ export class EmbedController extends BaseController {
     }
     try {
       return await this.manageService.isApiKeyAuthorized(apiKey);
-    } catch {
+    } catch (e: any) {
+      // Fail closed either way, but distinguish a genuine rejection from an
+      // upstream outage so the latter is observable, not silently a "bad key".
+      if (!(e instanceof UnauthorizedError)) {
+        console.warn(
+          "[EmbedController] Authorization check failed on an upstream error (treating as unauthorized):",
+          e?.message || e
+        );
+      }
       return false;
     }
   }
@@ -210,7 +218,25 @@ export class EmbedController extends BaseController {
       );
 
       if (sessionData && apiKey) {
-        await this.service.saveTrackingInfo(botId, chatId, sessionData, apiKey);
+        // Tracking is best-effort: a cache-write failure must not break widget
+        // loading. A bad key / missing bot, though, is a real caller error and
+        // must still surface, so re-throw those and only swallow+log the rest.
+        try {
+          await this.service.saveTrackingInfo(
+            botId,
+            chatId,
+            sessionData,
+            apiKey
+          );
+        } catch (e: any) {
+          if (e instanceof UnauthorizedError || e instanceof BotNotFoundError) {
+            throw e;
+          }
+          console.warn(
+            `[EmbedController] Failed to persist tracking info for chat ${chatId}:`,
+            e?.message || e
+          );
+        }
       }
 
       this.setStatus(200);

@@ -78,7 +78,15 @@ export class ManageService extends BaseService {
       );
 
       return response.status === 200;
-    } catch {
+    } catch (e: any) {
+      // A thrown error here means a network failure or 5xx (validateStatus lets
+      // 4xx through), i.e. an upstream outage - not a definitive "bot missing".
+      // Fail safe with false, but log so an outage isn't silently identical to
+      // a genuinely absent bot.
+      console.warn(
+        `[ManageService] criabotBotExists('${botName}') could not reach criabot:`,
+        e?.code || e?.message || e
+      );
       return false;
     }
   }

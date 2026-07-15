@@ -330,7 +330,9 @@ export default class ChatList extends Component {
     );
   };
 
-  async onCommandSend(event) {
+  // Arrow property so `this` stays bound when used as an addEventListener handler
+  // (the sibling handlers are all arrow properties for the same reason).
+  onCommandSend = async (event) => {
     this.clearStreaming();
 
     const command = event.detail.command;
@@ -350,7 +352,7 @@ export default class ChatList extends Component {
         hideInPrint={command.hideInPrint()}
       />
     );
-  }
+  };
 
   onChatReply = (event) => {
     const detail = event.detail;

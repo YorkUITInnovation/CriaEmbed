@@ -172,10 +172,8 @@ export class EmbedService extends BaseService {
       const trackingData = await this.trackingCache.get(chatId);
       const criabotPrompt = buildEmbedCriabotPrompt(prompt, trackingData);
 
-      let response: AxiosResponse = await this.postCriabotChat(
-        criabotChatId,
-        canonicalBotName,
-        criabotPrompt
+      let response: AxiosResponse = await this.withConnRetry(() =>
+        this.postCriabotChat(criabotChatId!, canonicalBotName, criabotPrompt)
       );
 
       // If Criabot does not know this chat id yet, create one and retry once.
@@ -240,6 +238,41 @@ export class EmbedService extends BaseService {
         : "Criabot service is temporarily unavailable. Please try again later.";
 
       throw new CriaError(message);
+    }
+  }
+
+  // Only connection-establishment failures are safe to retry on a non-idempotent
+  // chat POST: they prove the request never reached criabot, so no double-send.
+  private static readonly RETRIABLE_CONN_CODES = new Set([
+    "ECONNREFUSED",
+    "ENOTFOUND",
+    "EAI_AGAIN"
+  ]);
+
+  private async withConnRetry<T>(
+    fn: () => Promise<T>,
+    attempts = 2,
+    delayMs = 300
+  ): Promise<T> {
+    for (let i = 1; ; i++) {
+      try {
+        return await fn();
+      } catch (e: any) {
+        const retriable =
+          e?.response === undefined &&
+          EmbedService.RETRIABLE_CONN_CODES.has(e?.code);
+        if (!retriable || i >= attempts) {
+          throw e;
+        }
+        if (debugEnabled()) {
+          console.warn(
+            `[EmbedService] Transient criabot connection error (${
+              e?.code
+            }), retry ${i}/${attempts - 1} in ${delayMs * i}ms`
+          );
+        }
+        await new Promise(r => setTimeout(r, delayMs * i));
+      }
     }
   }
 
@@ -663,10 +696,12 @@ export class EmbedService extends BaseService {
       const trackingData = await this.trackingCache.get(chatId);
       const criabotPrompt = buildEmbedCriabotPrompt(prompt, trackingData);
 
-      let response = await this.postCriabotChatStream(
-        criabotChatId,
-        canonicalBotName,
-        criabotPrompt
+      let response = await this.withConnRetry(() =>
+        this.postCriabotChatStream(
+          criabotChatId!,
+          canonicalBotName,
+          criabotPrompt
+        )
       );
 
       // If Criabot does not know this chat id yet, create one and retry once.

@@ -32,6 +32,7 @@ jest.mock("tsoa", () => {
 });
 
 import { EmbedController } from "../../src/controllers/embed/EmbedController";
+import { UnauthorizedError } from "../../src/services/ManageService";
 
 describe("EmbedController", () => {
   let service: {
@@ -122,6 +123,46 @@ describe("EmbedController", () => {
       { courseId: 42 },
       "api-key"
     );
+  });
+
+  it("still loads the embed when the tracking write fails (best-effort)", async () => {
+    service.retrieveEmbed.mockResolvedValueOnce([
+      'console.log("loader")',
+      "chat-789"
+    ]);
+    service.saveTrackingInfo.mockRejectedValueOnce(new Error("redis down"));
+
+    const result = await controller.postLoadEmbed(
+      request,
+      "1321",
+      "api-key",
+      { courseId: 1 },
+      false,
+      false
+    );
+
+    expect(result).toBe("");
+    expect(request.res.send).toHaveBeenCalledWith('console.log("loader")');
+  });
+
+  it("surfaces an auth failure from the tracking write instead of swallowing it", async () => {
+    service.retrieveEmbed.mockResolvedValueOnce([
+      'console.log("loader")',
+      "chat-000"
+    ]);
+    service.saveTrackingInfo.mockRejectedValueOnce(new UnauthorizedError());
+
+    const result = await controller.postLoadEmbed(
+      request,
+      "1321",
+      "bad-key",
+      { courseId: 1 },
+      false,
+      false
+    );
+
+    expect(result).toMatchObject({ status: 403, code: "UNAUTHORIZED" });
+    expect(request.res.send).not.toHaveBeenCalled();
   });
 
   it("rejects upsertEmbedding without a valid API key", async () => {

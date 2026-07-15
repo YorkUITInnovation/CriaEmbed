@@ -90,7 +90,7 @@ export class EmbedChatController extends BaseController {
             timestamp: Date.now().toString(),
             status: 500,
             code: "ERROR",
-            message: "Error sending a chat due to an error: " + e.message,
+            message: "Error sending a chat due to an internal error.",
             reply: null,
             replyId: null,
             relatedPrompts: null,
@@ -143,7 +143,11 @@ export class EmbedStreamController extends BaseController {
           const bodyJson = JSON.parse(bodyText);
           upstreamMessage = bodyJson?.message || upstreamMessage;
         } catch (_error) {
-          // Keep raw text body when upstream did not return JSON.
+          // Non-JSON upstream body: keep it as text but bound the length so a
+          // large/raw error page can't become an unbounded client message.
+          if (upstreamMessage.length > 500) {
+            upstreamMessage = upstreamMessage.slice(0, 500) + "…";
+          }
         }
 
         this.setStatus(response.status);
