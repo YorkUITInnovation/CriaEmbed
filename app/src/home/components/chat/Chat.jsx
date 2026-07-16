@@ -1,6 +1,7 @@
 import { Component, isValidElement } from "react";
 import { styled } from "styled-components";
 import twemoji from "twemoji";
+import DOMPurify from "dompurify";
 import { getTheme } from "./ChatHeader.jsx";
 import SpeechButton from "./buttons/SpeechButton.jsx";
 import CopyButton from "./buttons/CopyButton.jsx";
@@ -43,14 +44,17 @@ const MessageContainer = styled.div`
 const BotMessage = styled.span`
   font-size: 14px;
   color: #424242;
-  padding: 8px;
+  padding: 10px 12px;
   background: white;
-  box-shadow: 1px 2px 5px 1px rgba(0, 0, 0, 0.13);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06),
+    0 4px 14px rgba(15, 23, 42, 0.04);
   word-break: break-word;
-  display: inline;
+  display: inline-block;
+  max-width: calc(100% - 42px);
   overflow: hidden;
   margin-right: 32px;
-  border-radius: 8px 8px 8px 2px;
+  border-radius: 12px 12px 12px 4px;
+  border: 1px solid rgba(0, 0, 0, 0.04);
 
   @media print {
     color: ${(props) => pickFontColorFromBg(props.$bgColor)};
@@ -142,13 +146,17 @@ const ReplyContent = styled.span`
 export function parseHTMLEmojis(html) {
   if (typeof html !== "string") return html;
 
-  // String element
-  return twemoji
+  const withEmojis = twemoji
     .parse(html, {
       base: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/",
     })
     .replaceAll(/\/> /g, "/>&nbsp;")
     .replaceAll(/ <img/g, "&nbsp;<img");
+
+  // Reply HTML comes from the model/RAG pipeline, so sanitize before it ever
+  // reaches dangerouslySetInnerHTML - strips <script>, event handlers and
+  // javascript: URLs while keeping normal formatting and the emoji <img> tags.
+  return DOMPurify.sanitize(withEmojis);
 }
 
 const CommandContextContainer = styled.div`

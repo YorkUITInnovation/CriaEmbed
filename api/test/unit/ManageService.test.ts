@@ -193,6 +193,45 @@ describe("ManageService", () => {
     });
   });
 
+  describe("isApiKeyAuthorized", () => {
+    it("returns true when the auth check authorizes the key", async () => {
+      mockedAxios.get.mockResolvedValueOnce({
+        status: 200,
+        data: { authorized: true }
+      } as any);
+
+      await expect(
+        manageService.isApiKeyAuthorized("testApiKey")
+      ).resolves.toBe(true);
+
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        `${Config.CRIA_SERVER_URL}/auth/testApiKey/check`,
+        expect.objectContaining({
+          headers: { "x-api-key": Config.CRIA_BOT_SERVER_TOKEN }
+        })
+      );
+    });
+
+    it("throws UnauthorizedError when the auth check denies the key", async () => {
+      mockedAxios.get.mockResolvedValueOnce({
+        status: 200,
+        data: { authorized: false }
+      } as any);
+
+      await expect(
+        manageService.isApiKeyAuthorized("testApiKey")
+      ).rejects.toThrow(UnauthorizedError);
+    });
+
+    it("throws UnauthorizedError when the auth check returns 404", async () => {
+      mockedAxios.get.mockResolvedValueOnce({ status: 404, data: {} } as any);
+
+      await expect(
+        manageService.isApiKeyAuthorized("testApiKey")
+      ).rejects.toThrow(UnauthorizedError);
+    });
+  });
+
   describe("existsBot", () => {
     it("returns true when the embed config exists by name", async () => {
       db.retrieveByName

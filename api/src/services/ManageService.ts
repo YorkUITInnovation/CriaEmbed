@@ -78,7 +78,15 @@ export class ManageService extends BaseService {
       );
 
       return response.status === 200;
-    } catch {
+    } catch (e: any) {
+      // A thrown error here means a network failure or 5xx (validateStatus lets
+      // 4xx through), i.e. an upstream outage - not a definitive "bot missing".
+      // Fail safe with false, but log so an outage isn't silently identical to
+      // a genuinely absent bot.
+      console.warn(
+        `[ManageService] criabotBotExists('${botName}') could not reach criabot:`,
+        e?.code || e?.message || e
+      );
       return false;
     }
   }
@@ -104,6 +112,47 @@ export class ManageService extends BaseService {
       if (e?.code !== "ER_DUP_ENTRY") {
         throw e;
       }
+    }
+  }
+
+  // Bot-independent API key check — same `/auth/{apiKey}/check` call used by
+  // botExistsAndIsAuthorized, without the bot-existence lookup. For endpoints
+  // that aren't scoped to a specific bot (e.g. the vector store CRUD routes).
+  public async isApiKeyAuthorized(apiKey: string): Promise<true> {
+    try {
+      const authCheckResponse: AxiosResponse = await super.get(
+        `${this.config.CRIA_SERVER_URL}/auth/${apiKey}/check`,
+        {
+          headers: { "x-api-key": this.config.CRIA_BOT_SERVER_TOKEN },
+          validateStatus: status => status < 500 // Don't throw on 4xx, only 5xx
+        }
+      );
+
+      if (
+        authCheckResponse.status === 404 ||
+        authCheckResponse.data?.authorized === false
+      ) {
+        throw new UnauthorizedError();
+      }
+
+      if (authCheckResponse.status !== 200) {
+        throw new CriaError(
+          `Auth check returned status ${authCheckResponse.status}`
+        );
+      }
+
+      return true;
+    } catch (e: any) {
+      if (e instanceof UnauthorizedError || e instanceof CriaError) {
+        throw e;
+      }
+
+      if (e.isAxiosError && e.response?.status === 404) {
+        throw new UnauthorizedError();
+      }
+
+      console.error(`[ManageService] Error in isApiKeyAuthorized:`, e.message);
+      throw e;
     }
   }
 
@@ -139,26 +188,7 @@ export class ManageService extends BaseService {
         );
       }
 
-      const authCheckResponse: AxiosResponse = await super.get(
-        `${this.config.CRIA_SERVER_URL}/auth/${apiKey}/check`,
-        {
-          headers: { "x-api-key": this.config.CRIA_BOT_SERVER_TOKEN },
-          validateStatus: status => status < 500 // Don't throw on 4xx, only 5xx
-        }
-      );
-
-      if (
-        authCheckResponse.status === 404 ||
-        authCheckResponse.data?.authorized === false
-      ) {
-        throw new UnauthorizedError();
-      }
-
-      if (authCheckResponse.status !== 200) {
-        throw new CriaError(
-          `Auth check returned status ${authCheckResponse.status}`
-        );
-      }
+      await this.isApiKeyAuthorized(apiKey);
 
       return true;
     } catch (e: any) {

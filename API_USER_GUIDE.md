@@ -1,11 +1,13 @@
 # CriaEmbed API User Guide
 
 This guide shows how to interact with the CriaEmbed API. You can use curl, Postman, or any HTTP client. All endpoints are rooted at:
+
 ```
 https://your-api-domain.com/
 ```
 
 ## Table of Contents
+
 1. Authentication
 2. Common Error Format
 3. Chats API
@@ -17,8 +19,10 @@ https://your-api-domain.com/
    - Inline & Popup Assets
    - Retrieve Embed Config
    - Send Chat Message
+   - Stream Chat Message (SSE)
    - Fetch Speech Audio
    - Retrieve Session Data
+   - Vector Store (Elasticsearch) upsert & search
 5. Integrations API
    - Azure Bot Webhook
 6. Manage API
@@ -31,10 +35,11 @@ https://your-api-domain.com/
 
 ## 1. Authentication
 
-• **X-Api-Key** (header) is required for all `/manage/*` endpoints and `POST /embed/{botId}/load`.
+• **X-Api-Key** (header) is required for all `/manage/*` endpoints, `POST /embed/{botId}/load`, and `POST /embed/{botId}/load/embedding/{upsert,search}`.
 • Other endpoints are public but subject to rate limits.
 
 Example:
+
 ```
 -H "X-Api-Key: YOUR_API_KEY"
 ```
@@ -44,13 +49,16 @@ Example:
 ## 2. Common Error Format
 
 All error responses return JSON with schema:
+
 ```json
 {
   "timestamp": "2025-08-11T12:34:56Z",
   "status": 404,
   "code": "NOT_FOUND",
   "message": "Resource not found",
-  "detail": { /* optional */ }
+  "detail": {
+    /* optional */
+  }
 }
 ```
 
@@ -59,13 +67,17 @@ All error responses return JSON with schema:
 ## 3. Chats API
 
 ### 3.1 Check Session Exists
+
 GET /chats/{chatId}/exists
 
 Example:
+
 ```
 curl -X GET "https://api.example.com/chats/abc123/exists"
 ```
+
 Response:
+
 ```json
 {
   "timestamp": "...",
@@ -77,15 +89,19 @@ Response:
 ```
 
 ### 3.2 Create New Chat
+
 POST /chats/{chatId}/create
 
 - `chatId`: previous session ID or `0` to start fresh.
 
 Example:
+
 ```
 curl -X POST "https://api.example.com/chats/0/create"
 ```
+
 Response:
+
 ```json
 {
   "timestamp": "...",
@@ -101,32 +117,42 @@ Response:
 ## 4. Embed API
 
 ### 4.1 Load Embed Script (GET)
+
 GET /embed/{botId}/load
 
 Query params:
+
 - `hideLauncher` (boolean)
 - `inlineLauncher` (boolean)
 
 Example:
+
 ```
 curl "https://api.example.com/embed/myBot/load?hideLauncher=false&inlineLauncher=true"
 ```
+
 Returns JavaScript snippet. Copy & paste into `<script>` tag.
 
 ### 4.2 Load Embed Script with Session (POST)
+
 POST /embed/{botId}/load
 
 Headers:
+
 ```
 X-Api-Key: YOUR_API_KEY
 ```
+
 Body:
+
 ```json
 { "userId": 42, "role": "admin" }
 ```
+
 Query params: `hideLauncher`, `inline`
 
 Example:
+
 ```
 curl -X POST "https://api.example.com/embed/myBot/load?inline=true" \
   -H "X-Api-Key: 1234" \
@@ -143,29 +169,37 @@ curl -X POST "https://api.example.com/embed/myBot/load?inline=true" \
 Include by adding `<script src=".../inline.js"></script>` or in a modal.
 
 ### 4.4 Retrieve Embed Config
+
 GET /embed/{botId}/config?chatId={chatId}
 
 Returns public settings (theme, prompts, locale).
 
 Example:
+
 ```
 curl "https://api.example.com/embed/myBot/config?chatId=newId123"
 ```
 
 ### 4.5 Send Chat Message
+
 POST /embed/{botId}/send
 
 Body:
+
 ```json
 { "chatId": "newId123", "prompt": "Hello!" }
 ```
+
 Example:
+
 ```
 curl -X POST "https://api.example.com/embed/myBot/send" \
   -H "Content-Type: application/json" \
   -d '{"chatId":"newId123","prompt":"Hi"}'
 ```
+
 Response:
+
 ```json
 {
   "timestamp":"...",
@@ -178,34 +212,94 @@ Response:
 }
 ```
 
-### 4.6 Fetch Speech Audio
+### 4.6 Stream Chat Message (SSE)
+
+POST /embed/{botId}/stream
+
+Same body as 4.5 Send Chat Message, but the reply streams back as Server-Sent Events (`text/event-stream`) instead of one JSON blob — use this for a typing-effect UI.
+
+Example:
+
+```
+curl -N -X POST "https://api.example.com/embed/myBot/stream" \
+  -H "Content-Type: application/json" \
+  -d '{"chatId":"newId123","prompt":"Hi"}'
+```
+
+If the request fails before streaming starts (e.g. the bot has no embeds enabled), you get a normal JSON error response instead of a stream.
+
+### 4.7 Fetch Speech Audio
+
 GET /embed/{chatId}/speech?messageId={msgId}&language=en-US
 
 Returns audio/webm stream or error JSON.
 
 Example:
+
 ```
 curl "https://api.example.com/embed/newId123/speech?messageId=msg456&language=en-US" --output reply.webm
 ```
 
-### 4.7 Retrieve Session Data
+### 4.8 Retrieve Session Data
+
 GET /embed/{botId}/session_data?chatId={chatId}
 
 Headers:
+
 ```
 X-Api-Key: YOUR_API_KEY
 ```
+
 Example:
+
 ```
 curl -H "X-Api-Key:1234" "https://api.example.com/embed/myBot/session_data?chatId=newId123"
 ```
+
 Response:
+
 ```json
 {
-  "timestamp":"...",
-  "status":200,
-  "code":"SUCCESS",
-  "sessionData":{"userId":42}
+  "timestamp": "...",
+  "status": 200,
+  "code": "SUCCESS",
+  "sessionData": { "userId": 42 }
+}
+```
+
+### 4.9 Vector Store (Elasticsearch) — upsert & search
+
+> Nested under `/embed/{botId}/load` for historical reasons — `botId` is accepted but unused, this is an internal/admin operation, not part of the public embed widget surface. This is CriaEmbed's own standalone Elasticsearch index (`criaembed` by default), separate from Criadex/Ragflow's indices. Requires `X-Api-Key` (same check as `/manage`, not bot-scoped).
+
+POST /embed/{botId}/load/embedding/upsert
+
+```
+curl -X POST "https://api.example.com/embed/myBot/load/embedding/upsert" \
+  -H "Content-Type: application/json" \
+  -H "X-Api-Key: 1234" \
+  -d '{"id":"doc-1","embedding":[0.1,0.2],"metadata":{"source":"faq"}}'
+```
+
+POST /embed/{botId}/load/embedding/search
+
+```
+curl -X POST "https://api.example.com/embed/myBot/load/embedding/search" \
+  -H "Content-Type: application/json" \
+  -H "X-Api-Key: 1234" \
+  -d '{"queryEmbedding":[0.1,0.2],"k":5}'
+```
+
+Response:
+
+```json
+{
+  "results": [
+    {
+      "_id": "doc-1",
+      "_score": 1.98,
+      "_source": { "embedding": [0.1, 0.2], "metadata": { "source": "faq" } }
+    }
+  ]
 }
 ```
 
@@ -214,16 +308,19 @@ Response:
 ## 5. Integrations API
 
 ### Azure Bot Webhook
+
 POST /integrations/azure/messages
 
 Receive messages from Azure Bot Service. Configure your Azure Bot channel to point to this URL.
 
 Example:
+
 ```
 curl -X POST "https://api.example.com/integrations/azure/messages" \
   -H "Content-Type: application/json" \
   -d @azurePayload.json
 ```
+
 No content (`204`) returned if successful.
 
 ---
@@ -231,16 +328,19 @@ No content (`204`) returned if successful.
 ## 6. Manage API
 
 All endpoints require:
+
 ```
 Header: X-Api-Key: YOUR_ADMIN_KEY
 ```
 
 ### 6.1 Insert Bot Config
+
 POST /manage/{botId}/insert
 
 Body: IBotBaseEmbedConfig JSON
 
 Example:
+
 ```
 curl -X POST "https://api.example.com/manage/myBot/insert" \
   -H "X-Api-Key:1234" \
@@ -249,19 +349,23 @@ curl -X POST "https://api.example.com/manage/myBot/insert" \
 ```
 
 ### 6.2 Retrieve Bot Config
+
 GET /manage/{botId}/config
 
 Example:
+
 ```
 curl -H "X-Api-Key:1234" "https://api.example.com/manage/myBot/config"
 ```
 
 ### 6.3 Update Bot Config
+
 PATCH /manage/{botId}/config
 
 Same body as insert.
 
 Example:
+
 ```
 curl -X PATCH "https://api.example.com/manage/myBot/config" \
   -H "X-Api-Key:1234" \
@@ -270,9 +374,11 @@ curl -X PATCH "https://api.example.com/manage/myBot/config" \
 ```
 
 ### 6.4 Delete Bot Config
+
 DELETE /manage/{botId}/delete
 
 Example:
+
 ```
 curl -X DELETE "https://api.example.com/manage/myBot/delete" \
   -H "X-Api-Key:1234"
@@ -283,13 +389,17 @@ curl -X DELETE "https://api.example.com/manage/myBot/delete" \
 ## 7. Health & Diagnostics
 
 ### 7.1 Health Check
+
 GET /health_check
 
 Example:
+
 ```
 curl "https://api.example.com/health_check"
 ```
+
 Response:
+
 ```json
 {
   "status": "ok",
@@ -301,25 +411,35 @@ Response:
 ```
 
 ### 7.2 Diagnose
-GET /manage/_diagnose
+
+GET /manage/\_diagnose
 
 Example:
+
 ```
 curl "https://api.example.com/manage/_diagnose"
 ```
+
 Response:
+
 ```json
 {
   "status": "ok",
   "diagnostics": {
     "service": "CriaEmbed API",
     "timestamp": 1234567890,
-    "criabot": {}
+    "criabot": {
+      "url": "http://criabot:25575",
+      "reachable": true,
+      "status": 200,
+      "error": null
+    }
   }
 }
 ```
 
+`criabot.reachable`/`status`/`error` reflect a live health-check call to Criabot's own `/health_check` at request time.
+
 ---
 
 **Need help?** Reach out to the CriaEmbed support team at support@cria.ai
-

@@ -382,4 +382,154 @@ describe("EmbedService", () => {
       ).rejects.toBeInstanceOf(Error);
     });
   });
+
+  describe("streamEmbedChat", () => {
+    it("should proxy stream requests to the Criabot stream endpoint", async () => {
+      mockManageService.retrieveBot.mockResolvedValueOnce({
+        botName: "mock-bot",
+        botEmbedTheme: null,
+        botEmbedDefaultEnabled: true,
+        botEmbedPosition: 1,
+        botWatermark: false,
+        botLocale: "en-US",
+        initialPrompts: [],
+        botTrustWarning: null,
+        botContact: null
+      });
+      mockTrackingCache.get.mockResolvedValueOnce(null).mockResolvedValueOnce({
+        courseId: 13,
+        courseName: "Art of Art",
+        name: "I am a student and my name is Alex"
+      });
+
+      const enrichedPrompt = buildEmbedCriabotPrompt("hello", {
+        courseId: 13,
+        courseName: "Art of Art",
+        name: "I am a student and my name is Alex"
+      });
+
+      const upstreamStream = { pipe: jest.fn() };
+      mockedAxios.post.mockResolvedValueOnce({
+        status: 200,
+        data: upstreamStream
+      } as any);
+
+      const response = await embedService.streamEmbedChat(
+        "mock-bot",
+        "chat-1",
+        "hello"
+      );
+
+      expect(mockedAxios.post).toHaveBeenCalledWith(
+        `${Config.CRIA_BOT_SERVER_URL}/bots/chats/chat-1/stream`,
+        {
+          bot_name: "mock-bot",
+          prompt: enrichedPrompt,
+          extra_bots: []
+        },
+        expect.objectContaining({
+          headers: {
+            "x-api-key": Config.CRIA_BOT_SERVER_TOKEN,
+            Accept: "text/event-stream"
+          },
+          responseType: "stream"
+        })
+      );
+      expect(response.status).toBe(200);
+      expect(response.data).toBe(upstreamStream);
+    });
+
+    it("should create a Criabot chat and retry stream when chat id is unknown", async () => {
+      mockManageService.retrieveBot.mockResolvedValueOnce({
+        botName: "mock-bot",
+        botEmbedTheme: null,
+        botEmbedDefaultEnabled: true,
+        botEmbedPosition: 1,
+        botWatermark: false,
+        botLocale: "en-US",
+        initialPrompts: [],
+        botTrustWarning: null,
+        botContact: null
+      });
+      mockTrackingCache.get
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ criabotChatId: "started-chat-id" });
+
+      mockedAxios.post
+        .mockResolvedValueOnce({
+          status: 404,
+          data: { message: "not found" }
+        } as any)
+        .mockResolvedValueOnce({
+          status: 200,
+          data: { chat_id: "started-chat-id" }
+        } as any)
+        .mockResolvedValueOnce({
+          status: 200,
+          data: { pipe: jest.fn() }
+        } as any);
+
+      const response = await embedService.streamEmbedChat(
+        "mock-bot",
+        "chat-2",
+        "hello again"
+      );
+
+      expect(mockedAxios.post).toHaveBeenNthCalledWith(
+        1,
+        `${Config.CRIA_BOT_SERVER_URL}/bots/chats/chat-2/stream`,
+        expect.any(Object),
+        expect.objectContaining({ responseType: "stream" })
+      );
+      expect(mockedAxios.post).toHaveBeenNthCalledWith(
+        2,
+        `${Config.CRIA_BOT_SERVER_URL}/bots/chats/start`,
+        {},
+        expect.any(Object)
+      );
+      expect(mockTrackingCache.set).toHaveBeenCalledWith("chat-2", {
+        criabotChatId: "started-chat-id"
+      });
+      expect(mockedAxios.post).toHaveBeenNthCalledWith(
+        3,
+        `${Config.CRIA_BOT_SERVER_URL}/bots/chats/started-chat-id/stream`,
+        expect.objectContaining({
+          bot_name: "mock-bot",
+          prompt: "q: hello again"
+        }),
+        expect.objectContaining({ responseType: "stream" })
+      );
+      expect(response.status).toBe(200);
+    });
+
+    it("should throw CriaError when stream transport fails", async () => {
+      mockManageService.retrieveBot.mockResolvedValueOnce({
+        botName: "mock-bot",
+        botEmbedTheme: null,
+        botEmbedDefaultEnabled: true,
+        botEmbedPosition: 1,
+        botWatermark: false,
+        botLocale: "en-US",
+        initialPrompts: [],
+        botTrustWarning: null,
+        botContact: null
+      });
+      mockTrackingCache.get
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null);
+      mockedAxios.post.mockRejectedValueOnce({
+        response: { status: 503 },
+        message: "upstream unavailable"
+      });
+
+      await expect(
+        embedService.streamEmbedChat("mock-bot", "chat-5", "hello")
+      ).rejects.toMatchObject({
+        payload: expect.objectContaining({
+          message: "[Cria] Criabot returned HTTP 503"
+        })
+      });
+    });
+  });
 });

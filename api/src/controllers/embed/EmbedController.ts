@@ -15,6 +15,7 @@ import {
 import {
   BotNotFoundError,
   EmbedNotFoundError,
+  ManageService,
   UnauthorizedError
 } from "../../services/ManageService.js";
 import { BaseController } from "../../models/BaseController.js";
@@ -25,20 +26,31 @@ import {
   CriaResponse
 } from "../../models/CriaResponse.js";
 import { RATE_LIMIT_EMBED_ALL_HANDLERS } from "../../models/LimitGenerator.js";
+import { getMySQLPool } from "../../database/mysql/pool.js";
 import e from "express";
 
 interface EmbedBody {
   [key: string]: any;
 }
 
+const UNAUTHORIZED_RESPONSE: CriaResponse = {
+  status: 401,
+  timestamp: Date.now().toString(),
+  code: "UNAUTHORIZED",
+  message: "You must provide a valid API key to use this endpoint."
+};
+
 @Route("/embed/{botId}/load")
 export class EmbedController extends BaseController {
   /**
-   * Upsert an embedding into Elasticsearch
+   * Upsert an embedding into Elasticsearch. Internal/admin operation, not
+   * part of the public embed widget surface — requires the same X-Api-Key
+   * used by /manage.
    */
   @Post("/embedding/upsert")
   @Tags("Embed")
   public async upsertEmbedding(
+    @Header(API_KEY_HEADER_NAME) apiKey: string,
     @Body()
     body: {
       id: string;
@@ -46,6 +58,11 @@ export class EmbedController extends BaseController {
       metadata: Record<string, any>;
     }
   ): Promise<CriaResponse> {
+    if (!(await this.isAuthorized(apiKey))) {
+      this.setStatus(401);
+      return { ...UNAUTHORIZED_RESPONSE, timestamp: Date.now().toString() };
+    }
+
     await this.service.upsertEmbedding(body.id, body.embedding, body.metadata);
     this.setStatus(200);
     return {
@@ -57,13 +74,20 @@ export class EmbedController extends BaseController {
   }
 
   /**
-   * Semantic search for embeddings in Elasticsearch
+   * Semantic search for embeddings in Elasticsearch. Internal/admin
+   * operation — requires the same X-Api-Key used by /manage.
    */
   @Post("/embedding/search")
   @Tags("Embed")
   public async searchEmbeddings(
+    @Header(API_KEY_HEADER_NAME) apiKey: string,
     @Body() body: { queryEmbedding: number[]; k?: number }
-  ): Promise<{ results: any[] }> {
+  ): Promise<{ results: any[] } | CriaResponse> {
+    if (!(await this.isAuthorized(apiKey))) {
+      this.setStatus(401);
+      return { ...UNAUTHORIZED_RESPONSE, timestamp: Date.now().toString() };
+    }
+
     const results = await this.service.searchEmbeddings(
       body.queryEmbedding,
       body.k || 10
@@ -72,7 +96,29 @@ export class EmbedController extends BaseController {
     return { results };
   }
 
-  constructor(public service: EmbedService = new EmbedService()) {
+  private async isAuthorized(apiKey: string): Promise<boolean> {
+    if (!apiKey) {
+      return false;
+    }
+    try {
+      return await this.manageService.isApiKeyAuthorized(apiKey);
+    } catch (e: any) {
+      // Fail closed either way, but distinguish a genuine rejection from an
+      // upstream outage so the latter is observable, not silently a "bad key".
+      if (!(e instanceof UnauthorizedError)) {
+        console.warn(
+          "[EmbedController] Authorization check failed on an upstream error (treating as unauthorized):",
+          e?.message || e
+        );
+      }
+      return false;
+    }
+  }
+
+  constructor(
+    public service: EmbedService = new EmbedService(),
+    private manageService: ManageService = new ManageService(getMySQLPool())
+  ) {
     super();
   }
 
@@ -172,7 +218,25 @@ export class EmbedController extends BaseController {
       );
 
       if (sessionData && apiKey) {
-        await this.service.saveTrackingInfo(botId, chatId, sessionData, apiKey);
+        // Tracking is best-effort: a cache-write failure must not break widget
+        // loading. A bad key / missing bot, though, is a real caller error and
+        // must still surface, so re-throw those and only swallow+log the rest.
+        try {
+          await this.service.saveTrackingInfo(
+            botId,
+            chatId,
+            sessionData,
+            apiKey
+          );
+        } catch (e: any) {
+          if (e instanceof UnauthorizedError || e instanceof BotNotFoundError) {
+            throw e;
+          }
+          console.warn(
+            `[EmbedController] Failed to persist tracking info for chat ${chatId}:`,
+            e?.message || e
+          );
+        }
       }
 
       this.setStatus(200);
