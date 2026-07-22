@@ -31,6 +31,12 @@ const SkeletonLine = styled.div`
   animation: ${shimmer} 1.6s ease-in-out infinite;
   will-change: background-position;
 
+  /* Matches the thinking block, which renders alongside this in the same
+     waiting state - both stop moving when reduced motion is requested. */
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+
   &.w100 {
     width: 100%;
   }
