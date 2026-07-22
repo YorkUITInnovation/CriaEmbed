@@ -32,4 +32,26 @@ CREATE TABLE IF NOT EXISTS `EmbedBot` (
 
 );
 
+CREATE TABLE IF NOT EXISTS `EmbedUsageLog` (
+    `id`                BIGINT AUTO_INCREMENT PRIMARY KEY,
+    `bot_id`            BIGINT NULL DEFAULT 0,
+    `userid`            BIGINT NULL DEFAULT 0,
+    `prompt`            LONGTEXT NULL,
+    `message`           LONGTEXT NULL,
+    `index_context`     LONGTEXT NULL,
+    `confidence`        SMALLINT NULL DEFAULT 0,
+    `prompt_tokens`     BIGINT NULL DEFAULT 0,
+    `completion_tokens` BIGINT NULL DEFAULT 0,
+    `total_tokens`      BIGINT NULL DEFAULT 0,
+    `cost`              DECIMAL(12, 6) NULL DEFAULT 0.000000,
+    `payload`           LONGTEXT NULL,
+    `ip`                VARCHAR(45) NULL,
+    `other`             LONGTEXT NULL,
+    `timecreated`       BIGINT NULL DEFAULT 0,
+
+    INDEX(`bot_id`),
+    INDEX(`userid`),
+    INDEX(`timecreated`)
+);
+
 

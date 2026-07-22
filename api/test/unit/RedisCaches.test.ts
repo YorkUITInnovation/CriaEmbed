@@ -1,6 +1,7 @@
 import AudioCache from "../../src/database/redis/controllers/AudioCache";
 import AzureChatCache from "../../src/database/redis/controllers/AzureChatCache";
 import TrackingCache from "../../src/database/redis/controllers/TrackingCache";
+import { closeRedisPool } from "../../src/database/redis/redis";
 
 jest.mock("ioredis", () => {
   return jest.fn().mockImplementation(() => ({
@@ -26,6 +27,15 @@ describe("Redis cache TTL + key coherency", () => {
       set: jest.fn(),
       del: jest.fn()
     };
+  });
+
+  it("closes the shared redis pool when requested", async () => {
+    const redisClient = (await import("../../src/database/redis/redis"))
+      ?.REDIS_POOL as any;
+
+    await closeRedisPool();
+
+    expect(redisClient.quit).toHaveBeenCalledTimes(1);
   });
 
   describe("AudioCache", () => {

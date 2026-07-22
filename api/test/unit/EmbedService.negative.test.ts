@@ -54,6 +54,7 @@ describe("EmbedService - Negative Cases", () => {
   let mockManageService: jest.Mocked<any>;
   let mockMessageCache: jest.Mocked<any>;
   let mockTrackingCache: jest.Mocked<any>;
+  let mockUsageLog: jest.Mocked<any>;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -70,11 +71,16 @@ describe("EmbedService - Negative Cases", () => {
       get: jest.fn().mockResolvedValue({ some: "data" }),
       set: jest.fn().mockResolvedValue("tracking-id")
     };
+    mockUsageLog = {
+      insert: jest.fn().mockResolvedValue(1),
+      find: jest.fn().mockResolvedValue({ items: [], total: 0 })
+    };
 
     embedService = new EmbedService(
       mockManageService,
       mockMessageCache,
-      mockTrackingCache
+      mockTrackingCache,
+      mockUsageLog
     );
     (embedService as any).axios = mockedAxios;
 

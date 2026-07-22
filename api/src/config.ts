@@ -43,6 +43,10 @@ type Config = {
   CRIA_BOT_SERVER_URL: string;
   CRIA_BOT_SERVER_TOKEN: string;
   CRIA_SERVER_TOKEN: string;
+  // Shared secret for server-to-server calls INTO CriaEmbed (e.g. Criabot's
+  // usage-log retrieval gateway) - distinct from CRIA_BOT_SERVER_TOKEN, which
+  // authenticates CriaEmbed's OUTBOUND calls to Criabot.
+  EMBED_INTERNAL_TOKEN: string;
   THIS_APP_URL: string;
   ASSETS_FOLDER_PATH: string;
   DEFAULT_BOT_GREETING: string;

@@ -1,4 +1,4 @@
-import { Body, Middlewares, Path, Post, Route, Tags } from "tsoa";
+import { Body, Middlewares, Path, Post, Request, Route, Tags } from "tsoa";
 import { Readable } from "stream";
 import { EmbedNotFoundError } from "../../services/ManageService.js";
 import { BaseController } from "../../models/BaseController.js";
@@ -10,6 +10,7 @@ import {
   SendChatResponse
 } from "../../models/CriaResponse.js";
 import { RATE_LIMIT_CHAT_ALL_HANDLERS } from "../../models/LimitGenerator.js";
+import e from "express";
 
 type ChatPayload = {
   chatId: string;
@@ -27,7 +28,8 @@ export class EmbedChatController extends BaseController {
   @Middlewares(...RATE_LIMIT_CHAT_ALL_HANDLERS)
   public async send(
     @Path() botId: string,
-    @Body() config: ChatPayload
+    @Body() config: ChatPayload,
+    @Request() request: e.Request
   ): Promise<SendChatResponse> {
     // Basic input validation to avoid malformed or abusive requests
     if (!botId || botId.trim().length === 0) {
@@ -55,7 +57,9 @@ export class EmbedChatController extends BaseController {
       const chat: SendChatResponse = await this.service.sendEmbedChat(
         botId,
         config.chatId,
-        prompt
+        prompt,
+        false,
+        request.ip ?? null
       );
       this.setStatus(200);
       return chat;

@@ -36,6 +36,7 @@ jest.mock("tsoa", () => {
     Middlewares: decorator,
     Path: decorator,
     Post: decorator,
+    Request: decorator,
     Route: decorator,
     Tags: decorator
   };
@@ -60,12 +61,18 @@ describe("EmbedChatController", () => {
     controller = new EmbedChatController(service as any);
   });
 
+  const mockRequest = { ip: "127.0.0.1" } as any;
+
   it("throws when prompt is empty", async () => {
     await expect(
-      controller.send("bot-id", {
-        chatId: "chat-1",
-        prompt: "   "
-      })
+      controller.send(
+        "bot-id",
+        {
+          chatId: "chat-1",
+          prompt: "   "
+        },
+        mockRequest
+      )
     ).rejects.toBeInstanceOf(CriaError);
     expect(service.sendEmbedChat).not.toHaveBeenCalled();
   });
@@ -82,15 +89,21 @@ describe("EmbedChatController", () => {
       verifiedResponse: null
     });
 
-    const result = await controller.send("bot-id", {
-      chatId: "chat-1",
-      prompt: "hello"
-    });
+    const result = await controller.send(
+      "bot-id",
+      {
+        chatId: "chat-1",
+        prompt: "hello"
+      },
+      mockRequest
+    );
 
     expect(service.sendEmbedChat).toHaveBeenCalledWith(
       "bot-id",
       "chat-1",
-      "hello"
+      "hello",
+      false,
+      "127.0.0.1"
     );
     expect(result).toMatchObject({
       status: 200,

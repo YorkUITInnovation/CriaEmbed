@@ -22,6 +22,12 @@ import { parse } from "node-html-parser";
 import TrackingCache from "../database/redis/controllers/TrackingCache.js";
 import { getMySQLPool } from "../database/mysql/pool.js";
 import { buildEmbedCriabotPrompt } from "./embedPrompt.js";
+import {
+  IEmbedUsageLogFilters,
+  IEmbedUsageLogPage,
+  UsageLog
+} from "../database/mysql/controllers/UsageLog.js";
+import { calculateCost } from "./costCalculator.js";
 
 const EMBED_BASE_SCRIPT: string = fs
   .readFileSync(path.join(Config.ASSETS_FOLDER_PATH, "/public/loader.js"))
@@ -87,6 +93,14 @@ export type CriabotChatReply = {
   related_prompts: CriabotChatResponseRelatedPrompt[];
   context: Record<string, any> | null;
   verified_response: boolean;
+  prompt?: string | null;
+  content?: { content?: string | null } | null;
+  group_responses?: Record<string, any> | null;
+  total_usage?: {
+    prompt_tokens?: number | null;
+    completion_tokens?: number | null;
+    total_tokens?: number | null;
+  } | null;
 };
 
 export type CriabotChatResponse = {
@@ -108,11 +122,36 @@ export class EmbedService extends BaseService {
     return randomUUID();
   }
 
+  async listUsageLogs(
+    filters: IEmbedUsageLogFilters & { bot_name?: string },
+    page: number,
+    limit: number
+  ): Promise<IEmbedUsageLogPage> {
+    const { bot_name, ...rest } = filters;
+    let resolvedFilters: IEmbedUsageLogFilters = rest;
+
+    // Criabot only ever knows a bot by name - resolve to CriaEmbed's own
+    // EmbedBot.id here, the same way sendChat() already does for logging.
+    if (bot_name) {
+      const botConfig = await this.manageService.retrieveBot(
+        bot_name,
+        "",
+        true
+      );
+      resolvedFilters = { ...rest, bot_id: botConfig.id ?? rest.bot_id };
+    }
+
+    return this.usageLog.find(resolvedFilters, page, limit);
+  }
+
   private async ensureGreetingMessage(
     chatId: string,
     greeting: string
   ): Promise<void> {
-    if (!(await this.messageCache.get(chatId, "greeting"))) {
+    // Re-write whenever the config greeting changes so edits propagate to
+    // existing chats; the old value was create-if-missing and went stale.
+    const existing = await this.messageCache.get(chatId, "greeting");
+    if (existing !== greeting) {
       await this.messageCache.set(chatId, greeting, "greeting");
     }
   }
@@ -124,7 +163,8 @@ export class EmbedService extends BaseService {
       getMySQLPool()
     ),
     public readonly messageCache: MessageCache = new MessageCache(),
-    public readonly trackingCache: TrackingCache = new TrackingCache()
+    public readonly trackingCache: TrackingCache = new TrackingCache(),
+    public readonly usageLog: UsageLog = new UsageLog(getMySQLPool())
   ) {
     super();
     this.vectorStore = new VectorStoreService();
@@ -151,7 +191,8 @@ export class EmbedService extends BaseService {
     botName: string,
     chatId: string,
     prompt: string,
-    history: any[]
+    history: any[],
+    clientIp: string | null = null
   ): Promise<CriaGetGPTResponseFunctionResponse> {
     // Resolve to the canonical bot name stored by embed config.
     const botConfig: IBotEmbed = await this.manageService.retrieveBot(
@@ -212,11 +253,37 @@ export class EmbedService extends BaseService {
         related_prompts: relatedPrompts
       };
 
+      const promptTokens: number | null =
+        reply?.total_usage?.prompt_tokens ?? null;
+      const completionTokens: number | null =
+        reply?.total_usage?.completion_tokens ?? null;
+      const totalTokens: number | null =
+        reply?.total_usage?.total_tokens ?? null;
+      const cost = calculateCost(promptTokens, completionTokens);
+
+      await this.logUsage({
+        botId: botConfig.id ?? null,
+        prompt: reply?.prompt ?? criabotPrompt,
+        message: reply?.content?.content ?? null,
+        groupResponses: reply?.group_responses ?? null,
+        promptTokens,
+        completionTokens,
+        totalTokens,
+        cost,
+        ip: clientIp,
+        requestPayload: {
+          botName: canonicalBotName,
+          chatId: criabotChatId,
+          prompt: criabotPrompt
+        },
+        responsePayload: response?.data
+      });
+
       return {
-        prompt_tokens: null,
-        completion_tokens: null,
-        total_tokens: null,
-        cost: null,
+        prompt_tokens: promptTokens,
+        completion_tokens: completionTokens,
+        total_tokens: totalTokens,
+        cost,
         file_name: null,
         message: reply?.content?.content || null,
         stacktrace: "",
@@ -238,6 +305,53 @@ export class EmbedService extends BaseService {
         : "Criabot service is temporarily unavailable. Please try again later.";
 
       throw new CriaError(message);
+    }
+  }
+
+  // Best-effort: a usage-log write failure must never fail the chat response
+  // itself - the reply has already been produced and is the source of truth.
+  private async logUsage(params: {
+    botId: number | null;
+    prompt: string | null;
+    message: string | null;
+    groupResponses: Record<string, any> | null;
+    promptTokens: number | null;
+    completionTokens: number | null;
+    totalTokens: number | null;
+    cost: number | null;
+    ip: string | null;
+    requestPayload: unknown;
+    responsePayload: unknown;
+  }): Promise<void> {
+    try {
+      await this.usageLog.insert({
+        bot_id: params.botId,
+        userid: null,
+        prompt: params.prompt,
+        message: params.message,
+        index_context: params.groupResponses
+          ? JSON.stringify(params.groupResponses)
+          : null,
+        confidence: null,
+        prompt_tokens: params.promptTokens,
+        completion_tokens: params.completionTokens,
+        total_tokens: params.totalTokens,
+        cost: params.cost,
+        payload: JSON.stringify({
+          request: params.requestPayload,
+          response: params.responsePayload
+        }),
+        ip: params.ip,
+        other: null,
+        timecreated: Math.floor(Date.now() / 1000)
+      });
+    } catch (error: any) {
+      if (debugEnabled()) {
+        console.error(
+          "[EmbedService] Failed to write usage log:",
+          error?.message || error
+        );
+      }
     }
   }
 
@@ -578,14 +692,16 @@ export class EmbedService extends BaseService {
     botName: string,
     chatId: string,
     prompt: string,
-    fullResponse: boolean = false
+    fullResponse: boolean = false,
+    clientIp: string | null = null
   ): Promise<SendChatResponse | ExtendedSendChatResponse> {
     const history = [{ role: "user", content: prompt }];
     const apiResponse: CriaGetGPTResponseFunctionResponse = await this.sendChat(
       botName,
       chatId,
       prompt,
-      history
+      history,
+      clientIp
     );
     const criaBotResponse = apiResponse.criabot_response;
 

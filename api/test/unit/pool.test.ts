@@ -1,13 +1,14 @@
 // Mock mysql2 before importing pool.ts so createPool is captured.
 const mockPool = {
   on: jest.fn(),
-  query: jest.fn((_sql: string, cb?: (err: unknown) => void) => cb && cb(null))
+  query: jest.fn((_sql: string, cb?: (err: unknown) => void) => cb && cb(null)),
+  end: jest.fn(() => Promise.resolve())
 };
 const createPool = jest.fn(() => mockPool);
 
 jest.mock("mysql2", () => ({ createPool }));
 
-import { getMySQLPool } from "../../src/database/mysql/pool";
+import { closeMySQLPool, getMySQLPool } from "../../src/database/mysql/pool";
 
 describe("getMySQLPool", () => {
   it("creates the pool once and reuses the singleton across calls", () => {
@@ -34,5 +35,13 @@ describe("getMySQLPool", () => {
       "SELECT 1",
       expect.any(Function)
     );
+  });
+
+  it("closes the singleton pool when requested", async () => {
+    getMySQLPool();
+
+    await closeMySQLPool();
+
+    expect(mockPool.end).toHaveBeenCalledTimes(1);
   });
 });

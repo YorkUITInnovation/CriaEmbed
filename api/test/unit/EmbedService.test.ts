@@ -55,6 +55,7 @@ describe("EmbedService", () => {
   let mockManageService: jest.Mocked<any>;
   let mockMessageCache: jest.Mocked<any>;
   let mockTrackingCache: jest.Mocked<any>;
+  let mockUsageLog: jest.Mocked<any>;
 
   beforeEach(() => {
     jest.clearAllMocks(); // Clears all mocks, including VectorStoreService constructor and its methods
@@ -85,11 +86,16 @@ describe("EmbedService", () => {
       get: jest.fn().mockResolvedValue({ some: "data" }),
       set: jest.fn().mockResolvedValue("tracking-id")
     };
+    mockUsageLog = {
+      insert: jest.fn().mockResolvedValue(1),
+      find: jest.fn().mockResolvedValue({ items: [], total: 0 })
+    };
 
     embedService = new EmbedService(
       mockManageService,
       mockMessageCache,
-      mockTrackingCache
+      mockTrackingCache,
+      mockUsageLog
     );
     (embedService as any).axios = mockedAxios;
 
@@ -186,6 +192,29 @@ describe("EmbedService", () => {
     });
   });
 
+  describe("retrieveEmbedConfig greeting propagation", () => {
+    it("re-writes the cached greeting when the config greeting changed", async () => {
+      // Existing chat holds a stale greeting; the edited config value must win.
+      mockMessageCache.get.mockResolvedValue("Old greeting");
+
+      await embedService.retrieveEmbedConfig("chat-1", "mock-bot");
+
+      expect(mockMessageCache.set).toHaveBeenCalledWith(
+        "chat-1",
+        "Hi there!",
+        "greeting"
+      );
+    });
+
+    it("does not re-write when the cached greeting already matches", async () => {
+      mockMessageCache.get.mockResolvedValue("Hi there!");
+
+      await embedService.retrieveEmbedConfig("chat-1", "mock-bot");
+
+      expect(mockMessageCache.set).not.toHaveBeenCalled();
+    });
+  });
+
   describe("existsEmbedChat", () => {
     it("returns true from the greeting cache without querying Criabot", async () => {
       mockMessageCache.get.mockResolvedValueOnce("Hello from cache");
@@ -279,6 +308,112 @@ describe("EmbedService", () => {
       expect(resp.status).toBe(200);
       expect(resp.code).toBe("SUCCESS");
       expect(resp.reply).toBe("ok");
+    });
+
+    it("should log usage with the full reply data instead of discarding it", async () => {
+      mockManageService.retrieveBot.mockResolvedValueOnce({
+        id: 7,
+        botName: "mock-bot",
+        botEmbedTheme: null,
+        botEmbedDefaultEnabled: true,
+        botEmbedPosition: 1,
+        botWatermark: false,
+        botLocale: "en-US",
+        initialPrompts: [],
+        botTrustWarning: null,
+        botContact: null
+      });
+      mockTrackingCache.get
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null);
+
+      mockedAxios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          status: 200,
+          code: "SUCCESS",
+          message: "Successfully sent the chat",
+          reply: {
+            prompt: "hello",
+            content: { content: "ok" },
+            verified_response: true,
+            related_prompts: [],
+            context: null,
+            group_responses: { docs: { nodes: [{ text: "relevant chunk" }] } },
+            total_usage: {
+              prompt_tokens: 12,
+              completion_tokens: 8,
+              total_tokens: 20
+            }
+          }
+        }
+      } as any);
+
+      await embedService.sendEmbedChat(
+        "mock-bot",
+        "chat-usage",
+        "hello",
+        false,
+        "203.0.113.5"
+      );
+
+      expect(mockUsageLog.insert).toHaveBeenCalledTimes(1);
+      const loggedRow = mockUsageLog.insert.mock.calls[0][0];
+      expect(loggedRow.bot_id).toBe(7);
+      expect(loggedRow.message).toBe("ok");
+      expect(loggedRow.prompt_tokens).toBe(12);
+      expect(loggedRow.completion_tokens).toBe(8);
+      expect(loggedRow.total_tokens).toBe(20);
+      expect(loggedRow.ip).toBe("203.0.113.5");
+      expect(JSON.parse(loggedRow.index_context)).toEqual({
+        docs: { nodes: [{ text: "relevant chunk" }] }
+      });
+      expect(JSON.parse(loggedRow.payload).response.reply.content.content).toBe(
+        "ok"
+      );
+    });
+
+    it("should not fail the chat when usage-log insert throws", async () => {
+      mockManageService.retrieveBot.mockResolvedValueOnce({
+        id: 7,
+        botName: "mock-bot",
+        botEmbedTheme: null,
+        botEmbedDefaultEnabled: true,
+        botEmbedPosition: 1,
+        botWatermark: false,
+        botLocale: "en-US",
+        initialPrompts: [],
+        botTrustWarning: null,
+        botContact: null
+      });
+      mockTrackingCache.get
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null);
+      mockUsageLog.insert.mockRejectedValueOnce(new Error("db unreachable"));
+
+      mockedAxios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          status: 200,
+          code: "SUCCESS",
+          message: "Successfully sent the chat",
+          reply: {
+            content: { content: "ok" },
+            verified_response: true,
+            related_prompts: [],
+            context: null
+          }
+        }
+      } as any);
+
+      const resp = await embedService.sendEmbedChat(
+        "mock-bot",
+        "chat-usage-2",
+        "hello"
+      );
+
+      expect(resp.status).toBe(200);
+      expect((resp as any).reply).toBe("ok");
     });
 
     it("should use canonical bot name from manage service when posting chat", async () => {
@@ -380,6 +515,38 @@ describe("EmbedService", () => {
       await expect(
         embedService.sendEmbedChat("mock-bot", "chat-4", "hi")
       ).rejects.toBeInstanceOf(Error);
+    });
+  });
+
+  describe("listUsageLogs", () => {
+    it("passes bot_id filters straight through when no bot_name is given", async () => {
+      mockUsageLog.find.mockResolvedValueOnce({ items: [], total: 0 });
+
+      await embedService.listUsageLogs({ bot_id: 5, userid: 9 }, 1, 20);
+
+      expect(mockUsageLog.find).toHaveBeenCalledWith(
+        { bot_id: 5, userid: 9 },
+        1,
+        20
+      );
+      expect(mockManageService.retrieveBot).not.toHaveBeenCalled();
+    });
+
+    it("resolves bot_name to CriaEmbed's own bot_id before querying", async () => {
+      mockManageService.retrieveBot.mockResolvedValueOnce({
+        id: 42,
+        botName: "mock-bot"
+      });
+      mockUsageLog.find.mockResolvedValueOnce({ items: [], total: 0 });
+
+      await embedService.listUsageLogs({ bot_name: "mock-bot" }, 1, 20);
+
+      expect(mockManageService.retrieveBot).toHaveBeenCalledWith(
+        "mock-bot",
+        "",
+        true
+      );
+      expect(mockUsageLog.find).toHaveBeenCalledWith({ bot_id: 42 }, 1, 20);
     });
   });
 
