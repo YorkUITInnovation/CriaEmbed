@@ -320,7 +320,25 @@ export class ManageService extends BaseService {
       throw new Error("Database not initialized");
     }
     await this.botExistsAndIsAuthorized(config.botName, apiKey);
-    const result: IBotEmbed | undefined = await this.db.update(config);
+
+    // db.update() writes every column, so merge a partial PATCH onto the stored row
+    // rather than blanking the fields the caller omitted.
+    const existing: IBotEmbed | undefined = await this.db.retrieveByName(
+      config.botName
+    );
+    if (!existing) {
+      throw new EmbedNotFoundError();
+    }
+    const provided = Object.fromEntries(
+      Object.entries(config).filter(([, value]) => value !== undefined)
+    );
+    const merged: IBotEmbedConfig = {
+      ...existing,
+      ...provided,
+      botName: config.botName
+    };
+
+    const result: IBotEmbed | undefined = await this.db.update(merged);
     if (!result) {
       throw new EmbedNotFoundError();
     }

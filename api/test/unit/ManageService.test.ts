@@ -416,6 +416,7 @@ describe("ManageService", () => {
       jest
         .spyOn(manageService, "botExistsAndIsAuthorized")
         .mockResolvedValueOnce(true);
+      db.retrieveByName.mockResolvedValueOnce({ id: 3, botName: "updatedBot" });
       db.update.mockResolvedValueOnce(updatedBot);
 
       await expect(
@@ -423,10 +424,42 @@ describe("ManageService", () => {
       ).resolves.toEqual(updatedBot);
     });
 
+    it("merges a partial update onto the stored row instead of blanking it", async () => {
+      // Criabot pushes only the fields it owns; db.update() writes every column, so
+      // without a merge an icon-only push would wipe the title/greeting.
+      jest
+        .spyOn(manageService, "botExistsAndIsAuthorized")
+        .mockResolvedValueOnce(true);
+      db.retrieveByName.mockResolvedValueOnce({
+        id: 3,
+        botName: "bot",
+        botTitle: "Kept Title",
+        botGreeting: "Kept Greeting",
+        publish: true
+      });
+      db.update.mockResolvedValueOnce({ id: 3, botName: "bot" });
+
+      await manageService.updateBot(
+        { botName: "bot", botIconUrl: "https://example.com/i.png" },
+        "testApiKey"
+      );
+
+      expect(db.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          botName: "bot",
+          botTitle: "Kept Title",
+          botGreeting: "Kept Greeting",
+          publish: true,
+          botIconUrl: "https://example.com/i.png"
+        })
+      );
+    });
+
     it("throws EmbedNotFoundError when update returns no config", async () => {
       jest
         .spyOn(manageService, "botExistsAndIsAuthorized")
         .mockResolvedValueOnce(true);
+      db.retrieveByName.mockResolvedValueOnce({ id: 1, botName: "missing" });
       db.update.mockResolvedValueOnce(undefined);
 
       await expect(

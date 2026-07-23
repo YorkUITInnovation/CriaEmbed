@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS `EmbedBot` (
     `botGreeting` VARCHAR(4096),
     `botContact` VARCHAR(512),
     `botIconUrl` VARCHAR(512),
+    -- Visibility gate mirrored from Criabot; defaults 0 to fail closed.
+    `publish` TINYINT(1) NOT NULL DEFAULT 0,
     `botEmbedTheme` VARCHAR(16),
     `botEmbedPosition` VARCHAR(2),
     `botEmbedDefaultEnabled` TINYINT,
@@ -55,3 +57,16 @@ CREATE TABLE IF NOT EXISTS `EmbedUsageLog` (
 );
 
 
+
+-- schema.sql is CREATE TABLE IF NOT EXISTS, so existing installs need an explicit
+-- add for new columns. Guarded so re-running the bootstrap stays idempotent.
+SET @publish_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'EmbedBot' AND COLUMN_NAME = 'publish'
+);
+SET @publish_sql = IF(@publish_exists = 0,
+    'ALTER TABLE `EmbedBot` ADD COLUMN `publish` TINYINT(1) NOT NULL DEFAULT 0',
+    'SELECT 1');
+PREPARE publish_stmt FROM @publish_sql;
+EXECUTE publish_stmt;
+DEALLOCATE PREPARE publish_stmt;

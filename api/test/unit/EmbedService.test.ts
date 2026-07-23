@@ -63,6 +63,7 @@ describe("EmbedService", () => {
     mockManageService = {
       retrieveBot: jest.fn().mockResolvedValue({
         botName: "mock-bot",
+        publish: true,
         botTitle: "Test Bot",
         botSubTitle: "A sub title",
         botGreeting: "Hi there!",
@@ -160,6 +161,7 @@ describe("EmbedService", () => {
     it("uses the canonical bot name in the loader script and seeds the greeting cache", async () => {
       mockManageService.retrieveBot.mockResolvedValueOnce({
         botName: "resolved-bot",
+        publish: true,
         botTitle: "Resolved Bot",
         botGreeting: "Welcome!",
         botIconUrl: "http://icon.url/icon.png",
@@ -249,6 +251,7 @@ describe("EmbedService", () => {
       // Set up manageService and axios mocks
       mockManageService.retrieveBot.mockResolvedValueOnce({
         botName: "mock-bot",
+        publish: true,
         botEmbedTheme: null,
         botEmbedDefaultEnabled: true,
         botEmbedPosition: 1,
@@ -314,6 +317,7 @@ describe("EmbedService", () => {
       mockManageService.retrieveBot.mockResolvedValueOnce({
         id: 7,
         botName: "mock-bot",
+        publish: true,
         botEmbedTheme: null,
         botEmbedDefaultEnabled: true,
         botEmbedPosition: 1,
@@ -377,6 +381,7 @@ describe("EmbedService", () => {
       mockManageService.retrieveBot.mockResolvedValueOnce({
         id: 7,
         botName: "mock-bot",
+        publish: true,
         botEmbedTheme: null,
         botEmbedDefaultEnabled: true,
         botEmbedPosition: 1,
@@ -472,6 +477,7 @@ describe("EmbedService", () => {
     it("should return non-success payload when Criabot returns a handled error", async () => {
       mockManageService.retrieveBot.mockResolvedValueOnce({
         botName: "mock-bot",
+        publish: true,
         botEmbedTheme: null,
         botEmbedDefaultEnabled: true,
         botEmbedPosition: 1,
@@ -500,6 +506,7 @@ describe("EmbedService", () => {
     it("should throw CriaError when Criabot request fails at transport level", async () => {
       mockManageService.retrieveBot.mockResolvedValueOnce({
         botName: "mock-bot",
+        publish: true,
         botEmbedTheme: null,
         botEmbedDefaultEnabled: true,
         botEmbedPosition: 1,
@@ -554,6 +561,7 @@ describe("EmbedService", () => {
     it("should proxy stream requests to the Criabot stream endpoint", async () => {
       mockManageService.retrieveBot.mockResolvedValueOnce({
         botName: "mock-bot",
+        publish: true,
         botEmbedTheme: null,
         botEmbedDefaultEnabled: true,
         botEmbedPosition: 1,
@@ -609,6 +617,7 @@ describe("EmbedService", () => {
     it("should create a Criabot chat and retry stream when chat id is unknown", async () => {
       mockManageService.retrieveBot.mockResolvedValueOnce({
         botName: "mock-bot",
+        publish: true,
         botEmbedTheme: null,
         botEmbedDefaultEnabled: true,
         botEmbedPosition: 1,
@@ -673,6 +682,7 @@ describe("EmbedService", () => {
     it("should throw CriaError when stream transport fails", async () => {
       mockManageService.retrieveBot.mockResolvedValueOnce({
         botName: "mock-bot",
+        publish: true,
         botEmbedTheme: null,
         botEmbedDefaultEnabled: true,
         botEmbedPosition: 1,

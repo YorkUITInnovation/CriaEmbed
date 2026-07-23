@@ -133,6 +133,8 @@ curl "https://api.example.com/embed/myBot/load?hideLauncher=false&inlineLauncher
 
 Returns JavaScript snippet. Copy & paste into `<script>` tag.
 
+Note: unpublished bots are intentionally hidden and return `404 NOT_FOUND`.
+
 ### 4.2 Load Embed Script with Session (POST)
 
 POST /embed/{botId}/load
@@ -173,6 +175,8 @@ Include by adding `<script src=".../inline.js"></script>` or in a modal.
 GET /embed/{botId}/config?chatId={chatId}
 
 Returns public settings (theme, prompts, locale).
+
+Note: unpublished bots return `404 NOT_FOUND` (same as missing bot).
 
 Example:
 
@@ -345,8 +349,10 @@ Example:
 curl -X POST "https://api.example.com/manage/myBot/insert" \
   -H "X-Api-Key:1234" \
   -H "Content-Type: application/json" \
-  -d '{"botName":"SupportBot","botIconUrl":"...","botGreeting":"Hi"}'
+  -d '{"botName":"SupportBot","botIconUrl":"...","botGreeting":"Hi","publish":true}'
 ```
+
+`publish` defaults to `false`; set it to `true` when the bot should be publicly available.
 
 ### 6.2 Retrieve Bot Config
 

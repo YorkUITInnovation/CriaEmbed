@@ -6,7 +6,7 @@ import {
   EmbedPosition,
   IBotEmbed
 } from "../database/mysql/controllers/BotEmbed.js";
-import { ManageService } from "./ManageService.js";
+import { EmbedNotFoundError, ManageService } from "./ManageService.js";
 import { AxiosResponse } from "axios";
 import { Config, debugEnabled } from "../config.js";
 import {
@@ -534,6 +534,16 @@ export class EmbedService extends BaseService {
     }
   }
 
+  /**
+   * Reject unpublished bots on the public embed surface. Fails closed: anything but an
+   * explicit true is hidden, and the not-found error hides it from an existence probe.
+   */
+  private assertPublished(botConfig: IBotEmbed): void {
+    if (botConfig.publish !== true) {
+      throw new EmbedNotFoundError("Bot is not published.");
+    }
+  }
+
   async retrieveEmbedConfig(
     chatId: string,
     botName: string
@@ -543,6 +553,7 @@ export class EmbedService extends BaseService {
       "",
       true
     );
+    this.assertPublished(botConfig);
     const botGreeting: string =
       botConfig.botGreeting || Config.DEFAULT_BOT_GREETING;
     const botGreetingId = "greeting";
@@ -622,6 +633,8 @@ export class EmbedService extends BaseService {
       "",
       true
     );
+    // Gate before creating a chat - an unpublished bot must leave no trace.
+    this.assertPublished(botConfig);
     const chatId: string = await this.createChat();
     await this.ensureGreetingMessage(
       chatId,

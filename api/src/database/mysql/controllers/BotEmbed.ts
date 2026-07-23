@@ -31,6 +31,8 @@ export interface IBotBaseEmbedConfig {
   integrationsWhitelistFilter?: string | null;
   embedHoverTooltip?: string | null;
   botContact?: string | null;
+  /** Visibility gate mirrored from Criabot. When false the widget must not render. */
+  publish?: boolean | null;
 }
 
 export interface IBotEmbedConfig extends IBotBaseEmbedConfig {
@@ -74,6 +76,8 @@ export class BotEmbed extends MySQLController {
         : null;
     res["botWatermark"] =
       res["botWatermark"] !== null ? Boolean(res["botWatermark"]) : null;
+    // Coerce to bool so a non-truthy value reads as unpublished (fail closed).
+    res["publish"] = Boolean(res["publish"]);
 
     return res as IBotEmbed;
   }
@@ -145,8 +149,8 @@ export class BotEmbed extends MySQLController {
               INSERT INTO \`EmbedBot\` (botName, botTitle, botSubTitle, botGreeting, botIconUrl, botEmbedTheme,
                                         botWatermark, botLocale, initialPrompts, botEmbedPosition, microsoftAppId, microsoftAppPassword,
                                         integrationsNoContextReply, integrationsFirstEmailOnly, integrationsWhitelistFilter, botEmbedDefaultEnabled,
-                                        botTrustWarning, embedHoverTooltip, botContact)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        botTrustWarning, embedHoverTooltip, botContact, publish)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `,
         [
           bot.botName,
@@ -188,7 +192,8 @@ export class BotEmbed extends MySQLController {
             : 0,
           bot.botTrustWarning,
           bot.embedHoverTooltip,
-          bot.botContact
+          bot.botContact,
+          bot.publish ? 1 : 0
         ],
         async (err: Error | null, res?: ResultSetHeader) => {
           if (err || !res) {
@@ -229,7 +234,8 @@ export class BotEmbed extends MySQLController {
                   botEmbedDefaultEnabled=?,
                   botTrustWarning=?,
                   embedHoverTooltip=?,
-                  botContact=?
+                  botContact=?,
+                  publish=?
               WHERE botName = ?
           `,
         [
@@ -273,6 +279,7 @@ export class BotEmbed extends MySQLController {
           bot.botTrustWarning,
           bot.embedHoverTooltip,
           bot.botContact,
+          bot.publish ? 1 : 0,
 
           // Identifier
           bot.botName

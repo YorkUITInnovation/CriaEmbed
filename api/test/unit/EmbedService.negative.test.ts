@@ -255,3 +255,67 @@ describe("EmbedService - Negative Cases", () => {
     });
   });
 });
+
+describe("EmbedService publish gate", () => {
+  const unpublished = {
+    botName: "mock-bot",
+    botTitle: "Hidden Bot",
+    botGreeting: "Hi!",
+    botEmbedDefaultEnabled: true,
+    botEmbedPosition: 1,
+    botWatermark: false,
+    botLocale: "en-US"
+  };
+
+  function serviceWith(botConfig: any) {
+    // Inject deps - the no-arg constructor opens a real MySQL pool.
+    const service: any = new EmbedService(
+      {
+        retrieveBot: jest.fn().mockResolvedValue(botConfig),
+        botExistsAndIsAuthorized: jest.fn()
+      } as any,
+      {
+        get: jest.fn().mockResolvedValue(null),
+        set: jest.fn().mockResolvedValue("id")
+      } as any,
+      { get: jest.fn(), set: jest.fn() } as any,
+      { insert: jest.fn(), find: jest.fn() } as any
+    );
+    service.ensureGreetingMessage = jest.fn().mockResolvedValue(undefined);
+    service.createChat = jest.fn().mockResolvedValue("chat-1");
+    return service;
+  }
+
+  it("blocks the config endpoint for an unpublished bot", async () => {
+    const service = serviceWith({ ...unpublished, publish: false });
+    await expect(
+      service.retrieveEmbedConfig("chat-1", "mock-bot")
+    ).rejects.toThrow(EmbedNotFoundError);
+  });
+
+  it("blocks the loader for an unpublished bot, before any chat is created", async () => {
+    const service = serviceWith({ ...unpublished, publish: false });
+    await expect(
+      service.retrieveEmbed("mock-bot", false, false)
+    ).rejects.toThrow(EmbedNotFoundError);
+    // An unpublished bot must leave no trace behind.
+    expect(service.createChat).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when publish is missing or non-boolean", async () => {
+    // A row that never received the Criabot sync must stay hidden, not default open.
+    for (const value of [undefined, null, 0, "true"]) {
+      const service = serviceWith({ ...unpublished, publish: value });
+      await expect(
+        service.retrieveEmbedConfig("chat-1", "mock-bot")
+      ).rejects.toThrow(EmbedNotFoundError);
+    }
+  });
+
+  it("allows a published bot through", async () => {
+    const service = serviceWith({ ...unpublished, publish: true });
+    await expect(
+      service.retrieveEmbedConfig("chat-1", "mock-bot")
+    ).resolves.toEqual(expect.objectContaining({ botId: "mock-bot" }));
+  });
+});

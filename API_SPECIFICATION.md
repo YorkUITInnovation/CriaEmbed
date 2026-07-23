@@ -55,6 +55,9 @@ Responses:
 
 Returns embeddable JavaScript snippet to initialize a chat widget.
 
+Visibility rule: only published bots are available. If `publish` is not explicitly
+`true`, this endpoint returns `404 NOT_FOUND`.
+
 Path Parameters:
 
 - `botId` (string)
@@ -177,6 +180,7 @@ Responses:
   }
   ```
 - `404 NOT_FOUND` if `chatId` doesn't exist/is expired.
+  Also returned when the bot is unpublished.
 
 ### POST /embed/{botId}/send
 
@@ -359,6 +363,7 @@ Body (JSON): `IBotBaseEmbedConfig`
   "botSubTitle": "Bot Subtitle",
   "botGreeting": "Hello!",
   "botIconUrl": "https://example.com/icon.png",
+  "publish": true,
   "botEmbedTheme": "#ffffff",
   "botEmbedDefaultEnabled": true,
   "botEmbedPosition": 2,
@@ -375,6 +380,8 @@ Body (JSON): `IBotBaseEmbedConfig`
   "botContact": "contact@example.com"
 }
 ```
+
+`publish` is mirrored from Criabot and defaults to `false` (fail closed).
 
 Note: `botEmbedPosition` values are: `1` (Bottom Left), `2` (Bottom Right), `3` (Top Right), `4` (Top Left).
 
