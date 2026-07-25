@@ -46,6 +46,7 @@ type EmbedPopupConfig = {
   embedHoverTooltip?: string | null;
   hideLauncher: boolean;
   inlineLauncher: boolean;
+  devKey?: string;
 };
 
 export type EmbedPublicConfig = {
@@ -538,22 +539,38 @@ export class EmbedService extends BaseService {
    * Reject unpublished bots on the public embed surface. Fails closed: anything but an
    * explicit true is hidden, and the not-found error hides it from an existence probe.
    */
-  private assertPublished(botConfig: IBotEmbed): void {
-    if (botConfig.publish !== true) {
-      throw new EmbedNotFoundError("Bot is not published.");
+  private isDeveloperModeAuthorized(
+    botConfig: IBotEmbed,
+    devKey?: string
+  ): boolean {
+    const configuredKey =
+      typeof botConfig.developerMode === "string"
+        ? botConfig.developerMode.trim()
+        : "";
+    const providedKey = typeof devKey === "string" ? devKey.trim() : "";
+
+    return configuredKey.length > 0 && providedKey.length > 0 && configuredKey === providedKey;
+  }
+
+  private assertPublished(botConfig: IBotEmbed, devKey?: string): void {
+    if (botConfig.publish === true || this.isDeveloperModeAuthorized(botConfig, devKey)) {
+      return;
     }
+
+    throw new EmbedNotFoundError("Bot is not published.");
   }
 
   async retrieveEmbedConfig(
     chatId: string,
-    botName: string
+    botName: string,
+    devKey?: string
   ): Promise<EmbedPublicConfig> {
     const botConfig: IBotEmbed = await this.manageService.retrieveBot(
       botName,
       "",
       true
     );
-    this.assertPublished(botConfig);
+    this.assertPublished(botConfig, devKey);
     const botGreeting: string =
       botConfig.botGreeting || Config.DEFAULT_BOT_GREETING;
     const botGreetingId = "greeting";
@@ -626,7 +643,8 @@ export class EmbedService extends BaseService {
   async retrieveEmbed(
     botName: string,
     hideLauncher: boolean,
-    inlineLauncher: boolean
+    inlineLauncher: boolean,
+    devKey?: string
   ): Promise<[string, string]> {
     const botConfig: IBotEmbed = await this.manageService.retrieveBot(
       botName,
@@ -634,7 +652,7 @@ export class EmbedService extends BaseService {
       true
     );
     // Gate before creating a chat - an unpublished bot must leave no trace.
-    this.assertPublished(botConfig);
+    this.assertPublished(botConfig, devKey);
     const chatId: string = await this.createChat();
     await this.ensureGreetingMessage(
       chatId,
@@ -657,7 +675,8 @@ export class EmbedService extends BaseService {
       embedPosition: botConfig.botEmbedPosition || EmbedPosition.BL,
       embedHoverTooltip: botConfig.embedHoverTooltip || null,
       hideLauncher: hideLauncher,
-      inlineLauncher: inlineLauncher
+      inlineLauncher: inlineLauncher,
+      devKey: devKey
     };
 
     const embedJs = EMBED_BASE_SCRIPT.replace(

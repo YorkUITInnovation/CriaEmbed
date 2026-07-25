@@ -312,6 +312,31 @@ describe("EmbedService publish gate", () => {
     }
   });
 
+  it("allows an unpublished bot when the developer key matches", async () => {
+    const service = serviceWith({
+      ...unpublished,
+      publish: false,
+      developerMode: "dev-secret"
+    });
+    await expect(
+      service.retrieveEmbedConfig("chat-1", "mock-bot", "dev-secret")
+    ).resolves.toEqual(expect.objectContaining({ botId: "mock-bot" }));
+    await expect(
+      service.retrieveEmbed("mock-bot", false, false, "dev-secret")
+    ).resolves.toEqual(expect.arrayContaining([expect.any(String)]));
+  });
+
+  it("blocks an unpublished bot when the developer key does not match", async () => {
+    const service = serviceWith({
+      ...unpublished,
+      publish: false,
+      developerMode: "dev-secret"
+    });
+    await expect(
+      service.retrieveEmbedConfig("chat-1", "mock-bot", "wrong-secret")
+    ).rejects.toThrow(EmbedNotFoundError);
+  });
+
   it("allows a published bot through", async () => {
     const service = serviceWith({ ...unpublished, publish: true });
     await expect(

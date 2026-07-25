@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS `EmbedBot` (
     `botIconUrl` VARCHAR(512),
     -- Visibility gate mirrored from Criabot; defaults 0 to fail closed.
     `publish` TINYINT(1) NOT NULL DEFAULT 0,
+    `developerMode` VARCHAR(512),
     `botEmbedTheme` VARCHAR(16),
     `botEmbedPosition` VARCHAR(2),
     `botEmbedDefaultEnabled` TINYINT,
@@ -70,3 +71,14 @@ SET @publish_sql = IF(@publish_exists = 0,
 PREPARE publish_stmt FROM @publish_sql;
 EXECUTE publish_stmt;
 DEALLOCATE PREPARE publish_stmt;
+
+SET @developer_mode_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'EmbedBot' AND COLUMN_NAME = 'developerMode'
+);
+SET @developer_mode_sql = IF(@developer_mode_exists = 0,
+    'ALTER TABLE `EmbedBot` ADD COLUMN `developerMode` VARCHAR(512) NULL',
+    'SELECT 1');
+PREPARE developer_mode_stmt FROM @developer_mode_sql;
+EXECUTE developer_mode_stmt;
+DEALLOCATE PREPARE developer_mode_stmt;

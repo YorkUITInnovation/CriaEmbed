@@ -27,6 +27,7 @@ export default class CriaConfig {
   initialPrompts;
   botTrustWarning;
   botContact;
+  devKey;
 
   // Diagnostics
   lastConfigError;
@@ -55,14 +56,13 @@ export default class CriaConfig {
     }
 
     // Fetch the config
-    const url =
-      this.chatApiUrl +
-      "/embed/" +
-      this.botId +
-      "/config?chatId=" +
-      encodeURIComponent(this.chatId);
+    const url = new URL(this.chatApiUrl + "/embed/" + this.botId + "/config");
+    url.searchParams.set("chatId", this.chatId);
+    if (this.devKey) {
+      url.searchParams.set("dev-key", this.devKey);
+    }
 
-    const res = await fetch(url);
+    const res = await fetch(url.toString());
     if (!res.ok) {
       const body = await res.text();
       const msg = `Embed config request failed (${res.status} ${res.statusText})`;
@@ -93,6 +93,14 @@ export default class CriaConfig {
 
   // Fill class from URL
   #build() {
+    const devKeyParam = this.#url.searchParams.get("devKey");
+    const devKeyAltParam = this.#url.searchParams.get("dev-key");
+    if (devKeyParam != null) {
+      this.devKey = decodeURIComponent(devKeyParam);
+    } else if (devKeyAltParam != null) {
+      this.devKey = decodeURIComponent(devKeyAltParam);
+    }
+
     for (const key of Object.keys(this)) {
       if (this[key] !== undefined || typeof this[key] === "function") {
         continue;

@@ -143,9 +143,18 @@ export class EmbedController extends BaseController {
     @Request() request: e.Request,
     @Path() botId: string,
     @Query() hideLauncher: boolean = false,
-    @Query() inlineLauncher: boolean = false
+    @Query() inlineLauncher: boolean = false,
+    @Query("dev-key") devKey?: string
   ): Promise<string | CriaResponse> {
-    return await this.loadEmbed(request, botId, hideLauncher, inlineLauncher);
+    return await this.loadEmbed(
+      request,
+      botId,
+      hideLauncher,
+      inlineLauncher,
+      undefined,
+      undefined,
+      devKey
+    );
   }
 
   @Tags("Sessions")
@@ -171,7 +180,8 @@ export class EmbedController extends BaseController {
     @Header(API_KEY_HEADER_NAME) apiKey: string,
     @Body() sessionData: EmbedBody,
     @Query() hideLauncher: boolean = false,
-    @Query() inline: boolean = false
+    @Query() inline: boolean = false,
+    @Query("dev-key") devKey?: string
   ): Promise<string | CriaResponse> {
     return await this.loadEmbed(
       request,
@@ -179,7 +189,8 @@ export class EmbedController extends BaseController {
       hideLauncher,
       inline,
       sessionData,
-      apiKey
+      apiKey,
+      devKey
     );
   }
 
@@ -189,7 +200,8 @@ export class EmbedController extends BaseController {
     hideLauncher: boolean,
     inlineLauncher: boolean = false,
     sessionData?: Record<string, any>,
-    apiKey?: string
+    apiKey?: string,
+    devKey?: string
   ): Promise<string | CriaResponse> {
     try {
       if (sessionData && !apiKey) {
@@ -214,7 +226,8 @@ export class EmbedController extends BaseController {
       const [embed, chatId] = await this.service.retrieveEmbed(
         botId,
         hideLauncher,
-        inlineLauncher
+        inlineLauncher,
+        devKey
       );
 
       if (sessionData && apiKey) {

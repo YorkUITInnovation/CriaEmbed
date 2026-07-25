@@ -18,6 +18,7 @@ export class EmbedConfigController extends BaseController {
   public async retrieveConfig(
       @Path() botId: string,
       @Query() chatId: string,
+      @Query("dev-key") devKey?: string,
   ): Promise<EmbedConfigResponse> {
 
     if (!await this.service.existsEmbedChat(chatId)) {
@@ -33,7 +34,8 @@ export class EmbedConfigController extends BaseController {
     try {
       const config: EmbedPublicConfig = await this.service.retrieveEmbedConfig(
           chatId,
-          botId
+          botId,
+          devKey
       );
       this.setStatus(200);
       return {

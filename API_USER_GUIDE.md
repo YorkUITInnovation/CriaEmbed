@@ -124,6 +124,7 @@ Query params:
 
 - `hideLauncher` (boolean)
 - `inlineLauncher` (boolean)
+- `dev-key` (string, optional) — bypasses the publish gate when it matches the bot's `developerMode` config value
 
 Example:
 
@@ -133,7 +134,7 @@ curl "https://api.example.com/embed/myBot/load?hideLauncher=false&inlineLauncher
 
 Returns JavaScript snippet. Copy & paste into `<script>` tag.
 
-Note: unpublished bots are intentionally hidden and return `404 NOT_FOUND`.
+Note: unpublished bots are intentionally hidden and return `404 NOT_FOUND` unless you pass a matching `dev-key` query parameter and the bot's `developerMode` config value matches it.
 
 ### 4.2 Load Embed Script with Session (POST)
 
@@ -151,7 +152,7 @@ Body:
 { "userId": 42, "role": "admin" }
 ```
 
-Query params: `hideLauncher`, `inline`
+Query params: `hideLauncher`, `inline`, `dev-key`
 
 Example:
 

@@ -15,7 +15,7 @@
 
     const criaEmbedURL = new URL(chatConfig.webAppUrl);
 
-    for (const prop of ["botId", "chatId", "webAppUrl", "chatApiUrl"]) {
+    for (const prop of ["botId", "chatId", "webAppUrl", "chatApiUrl", "devKey"]) {
       if (typeof chatConfig[prop] !== "function" && chatConfig[prop] != null) {
         criaEmbedURL.searchParams.set(prop, String(chatConfig[prop]));
       }

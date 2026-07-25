@@ -56,7 +56,8 @@ Responses:
 Returns embeddable JavaScript snippet to initialize a chat widget.
 
 Visibility rule: only published bots are available. If `publish` is not explicitly
-`true`, this endpoint returns `404 NOT_FOUND`.
+`true`, this endpoint returns `404 NOT_FOUND` unless a matching `dev-key` query
+parameter is supplied and the bot's `developerMode` config value matches it.
 
 Path Parameters:
 
@@ -66,6 +67,7 @@ Query Parameters:
 
 - `hideLauncher` (boolean, default `false`)
 - `inlineLauncher` (boolean, default `false`)
+- `dev-key` (string, optional) — bypasses the publish gate when it matches the bot's `developerMode` config value
 
 Produces: `application/javascript`
 
@@ -85,6 +87,7 @@ Query Parameters:
 
 - `hideLauncher` (boolean)
 - `inline` (boolean)
+- `dev-key` (string, optional) — bypasses the publish gate when it matches the bot's `developerMode` config value
 
 Body (JSON):
 

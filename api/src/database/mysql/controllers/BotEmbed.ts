@@ -33,6 +33,8 @@ export interface IBotBaseEmbedConfig {
   botContact?: string | null;
   /** Visibility gate mirrored from Criabot. When false the widget must not render. */
   publish?: boolean | null;
+  /** Optional development-only key that bypasses the publish gate for embed loading. */
+  developerMode?: string | null;
 }
 
 export interface IBotEmbedConfig extends IBotBaseEmbedConfig {
@@ -149,8 +151,8 @@ export class BotEmbed extends MySQLController {
               INSERT INTO \`EmbedBot\` (botName, botTitle, botSubTitle, botGreeting, botIconUrl, botEmbedTheme,
                                         botWatermark, botLocale, initialPrompts, botEmbedPosition, microsoftAppId, microsoftAppPassword,
                                         integrationsNoContextReply, integrationsFirstEmailOnly, integrationsWhitelistFilter, botEmbedDefaultEnabled,
-                                        botTrustWarning, embedHoverTooltip, botContact, publish)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        botTrustWarning, embedHoverTooltip, botContact, publish, developerMode)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `,
         [
           bot.botName,
@@ -193,7 +195,10 @@ export class BotEmbed extends MySQLController {
           bot.botTrustWarning,
           bot.embedHoverTooltip,
           bot.botContact,
-          bot.publish ? 1 : 0
+          bot.publish ? 1 : 0,
+          bot.developerMode === null || bot.developerMode === undefined
+            ? null
+            : bot.developerMode
         ],
         async (err: Error | null, res?: ResultSetHeader) => {
           if (err || !res) {
@@ -235,7 +240,8 @@ export class BotEmbed extends MySQLController {
                   botTrustWarning=?,
                   embedHoverTooltip=?,
                   botContact=?,
-                  publish=?
+                  publish=?,
+                  developerMode=?
               WHERE botName = ?
           `,
         [
@@ -280,7 +286,10 @@ export class BotEmbed extends MySQLController {
           bot.embedHoverTooltip,
           bot.botContact,
           bot.publish ? 1 : 0,
-
+          bot.developerMode === null || bot.developerMode === undefined
+            ? null
+            : bot.developerMode,
+ 
           // Identifier
           bot.botName
         ],
