@@ -135,7 +135,10 @@ describe("ManageService", () => {
         1,
         `${Config.CRIA_BOT_SERVER_URL}/bots/testBot/manage/about`,
         expect.objectContaining({
-          headers: { "x-api-key": Config.CRIA_BOT_SERVER_TOKEN }
+          headers: expect.objectContaining({
+            "x-api-key": Config.CRIA_BOT_SERVER_TOKEN,
+            "X-Internal-Service": "criaembed"
+          })
         })
       );
       expect(mockedAxios.get).toHaveBeenNthCalledWith(
@@ -465,6 +468,138 @@ describe("ManageService", () => {
       await expect(
         manageService.updateBot({ botName: "missing" }, "testApiKey")
       ).rejects.toThrow(EmbedNotFoundError);
+    });
+
+    it("syncs publish status to Criabot with X-Internal-Service header", async () => {
+      jest
+        .spyOn(manageService, "botExistsAndIsAuthorized")
+        .mockResolvedValueOnce(true);
+      const mockBot: IBotEmbed = {
+        id: 1,
+        botName: "testBot",
+        botTitle: "Test Bot",
+        botGreeting: "Hello",
+        publish: true,
+        developerMode: undefined
+      };
+      db.retrieveByName.mockResolvedValueOnce(mockBot);
+      db.update.mockResolvedValueOnce(mockBot);
+      mockedAxios.patch.mockResolvedValueOnce({
+        status: 200,
+        data: {}
+      } as any);
+
+      await manageService.updateBot(
+        { botName: "testBot", publish: true },
+        "testApiKey"
+      );
+
+      expect(mockedAxios.patch).toHaveBeenCalledWith(
+        `${Config.CRIA_BOT_SERVER_URL}/bots/testBot/manage/publish`,
+        expect.objectContaining({
+          status: "published"
+        }),
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            "X-Internal-Service": "criaembed",
+            "x-api-key": Config.CRIA_BOT_SERVER_TOKEN
+          })
+        })
+      );
+    });
+
+    it("syncs developer mode to Criabot when present", async () => {
+      jest
+        .spyOn(manageService, "botExistsAndIsAuthorized")
+        .mockResolvedValueOnce(true);
+      const mockBot: IBotEmbed = {
+        id: 1,
+        botName: "testBot",
+        botTitle: "Test Bot",
+        botGreeting: "Hello",
+        publish: false,
+        developerMode: "dev-key-123"
+      };
+      db.retrieveByName.mockResolvedValueOnce(mockBot);
+      db.update.mockResolvedValueOnce(mockBot);
+      mockedAxios.patch.mockResolvedValueOnce({
+        status: 200,
+        data: {}
+      } as any);
+
+      await manageService.updateBot(
+        {
+          botName: "testBot",
+          publish: false,
+          developerMode: "dev-key-123"
+        },
+        "testApiKey"
+      );
+
+      expect(mockedAxios.patch).toHaveBeenCalledWith(
+        expect.stringContaining("/manage/publish"),
+        expect.objectContaining({
+          status: "develop",
+          developerKey: "dev-key-123"
+        }),
+        expect.any(Object)
+      );
+    });
+
+    it("handles sync errors gracefully without throwing", async () => {
+      jest
+        .spyOn(manageService, "botExistsAndIsAuthorized")
+        .mockResolvedValueOnce(true);
+      const mockBot: IBotEmbed = {
+        id: 1,
+        botName: "testBot",
+        botTitle: "Test Bot",
+        botGreeting: "Hello",
+        publish: true
+      };
+      db.retrieveByName.mockResolvedValueOnce(mockBot);
+      db.update.mockResolvedValueOnce(mockBot);
+      mockedAxios.patch.mockRejectedValueOnce(new Error("Connection timeout"));
+
+      // Even if sync fails, updateBot should still succeed
+      const result = await manageService.updateBot(
+        { botName: "testBot", publish: true },
+        "testApiKey"
+      );
+
+      expect(result).toEqual(mockBot);
+      expect(mockedAxios.patch).toHaveBeenCalled();
+    });
+
+    it("skips sync when CRIA_BOT_SERVER_TOKEN is not set", async () => {
+      jest
+        .spyOn(manageService, "botExistsAndIsAuthorized")
+        .mockResolvedValueOnce(true);
+      const mockBot: IBotEmbed = {
+        id: 1,
+        botName: "testBot",
+        botTitle: "Test Bot",
+        botGreeting: "Hello",
+        publish: true
+      };
+      db.retrieveByName.mockResolvedValueOnce(mockBot);
+      db.update.mockResolvedValueOnce(mockBot);
+
+      const originalToken = process.env.CRIA_BOT_SERVER_TOKEN;
+      delete process.env.CRIA_BOT_SERVER_TOKEN;
+
+      try {
+        const result = await manageService.updateBot(
+          { botName: "testBot", publish: true },
+          "testApiKey"
+        );
+
+        // Should still succeed but sync should not be called
+        expect(result).toEqual(mockBot);
+        expect(mockedAxios.patch).not.toHaveBeenCalled();
+      } finally {
+        process.env.CRIA_BOT_SERVER_TOKEN = originalToken;
+      }
     });
   });
 });

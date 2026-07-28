@@ -1,6 +1,7 @@
 import { ResultSetHeader, RowDataPacket } from "mysql2";
 import { MySQLController } from "../../../models/MySQLController.js";
 import { CriabotChatResponseRelatedPrompt } from "../../../services/EmbedService.js";
+import type { PersonalizationPayloadEntry } from "../../../services/personalizationPayload.js";
 import { debugEnabled } from "../../../config.js";
 
 export enum EmbedPosition {
@@ -24,6 +25,7 @@ export interface IBotBaseEmbedConfig {
   botLocale?: BotLocale | null;
   botTrustWarning?: string | null;
   initialPrompts?: CriabotChatResponseRelatedPrompt[] | null;
+  personalizationPayload?: PersonalizationPayloadEntry[] | null;
   microsoftAppId?: string | null;
   microsoftAppPassword?: string | null;
   integrationsNoContextReply?: boolean | null;
@@ -62,6 +64,10 @@ export class BotEmbed extends MySQLController {
 
     if (res?.initialPrompts) {
       res["initialPrompts"] = JSON.parse(res["initialPrompts"]);
+    }
+
+    if (res?.personalizationPayload) {
+      res["personalizationPayload"] = JSON.parse(res["personalizationPayload"]);
     }
 
     res["integrationsNoContextReply"] =
@@ -151,8 +157,8 @@ export class BotEmbed extends MySQLController {
               INSERT INTO \`EmbedBot\` (botName, botTitle, botSubTitle, botGreeting, botIconUrl, botEmbedTheme,
                                         botWatermark, botLocale, initialPrompts, botEmbedPosition, microsoftAppId, microsoftAppPassword,
                                         integrationsNoContextReply, integrationsFirstEmailOnly, integrationsWhitelistFilter, botEmbedDefaultEnabled,
-                                        botTrustWarning, embedHoverTooltip, botContact, publish, developerMode)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        botTrustWarning, embedHoverTooltip, botContact, publish, developerMode, personalizationPayload)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `,
         [
           bot.botName,
@@ -198,7 +204,11 @@ export class BotEmbed extends MySQLController {
           bot.publish ? 1 : 0,
           bot.developerMode === null || bot.developerMode === undefined
             ? null
-            : bot.developerMode
+            : bot.developerMode,
+          bot.personalizationPayload === undefined ||
+          bot.personalizationPayload === null
+            ? null
+            : JSON.stringify(bot.personalizationPayload)
         ],
         async (err: Error | null, res?: ResultSetHeader) => {
           if (err || !res) {
@@ -241,7 +251,8 @@ export class BotEmbed extends MySQLController {
                   embedHoverTooltip=?,
                   botContact=?,
                   publish=?,
-                  developerMode=?
+                  developerMode=?,
+                  personalizationPayload=?
               WHERE botName = ?
           `,
         [
@@ -289,7 +300,11 @@ export class BotEmbed extends MySQLController {
           bot.developerMode === null || bot.developerMode === undefined
             ? null
             : bot.developerMode,
- 
+          bot.personalizationPayload === undefined ||
+          bot.personalizationPayload === null
+            ? null
+            : JSON.stringify(bot.personalizationPayload),
+
           // Identifier
           bot.botName
         ],

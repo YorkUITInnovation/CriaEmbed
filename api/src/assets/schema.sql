@@ -82,3 +82,14 @@ SET @developer_mode_sql = IF(@developer_mode_exists = 0,
 PREPARE developer_mode_stmt FROM @developer_mode_sql;
 EXECUTE developer_mode_stmt;
 DEALLOCATE PREPARE developer_mode_stmt;
+
+SET @personalization_payload_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'EmbedBot' AND COLUMN_NAME = 'personalizationPayload'
+);
+SET @personalization_payload_sql = IF(@personalization_payload_exists = 0,
+    'ALTER TABLE `EmbedBot` ADD COLUMN `personalizationPayload` TEXT NULL',
+    'SELECT 1');
+PREPARE personalization_payload_stmt FROM @personalization_payload_sql;
+EXECUTE personalization_payload_stmt;
+DEALLOCATE PREPARE personalization_payload_stmt;

@@ -5,7 +5,7 @@ import {
   IBotEmbedConfig
 } from "../database/mysql/controllers/BotEmbed.js";
 import { CriaError } from "../models/CriaResponse.js";
-import { AxiosResponse, AxiosError } from "axios";
+import axios, { AxiosResponse, AxiosError } from "axios";
 import { Config as GlobalConfig } from "../config.js";
 
 export class DuplicateEmbedError extends Error {}
@@ -72,7 +72,10 @@ export class ManageService extends BaseService {
           botName
         )}/manage/about`,
         {
-          headers: { "x-api-key": this.config.CRIA_BOT_SERVER_TOKEN },
+          headers: {
+            "x-api-key": this.config.CRIA_BOT_SERVER_TOKEN,
+            "X-Internal-Service": "criaembed"
+          },
           validateStatus: status => status < 500
         }
       );
@@ -168,7 +171,10 @@ export class ManageService extends BaseService {
           resolvedBotName
         )}/manage/about`,
         {
-          headers: { "x-api-key": this.config.CRIA_BOT_SERVER_TOKEN },
+          headers: {
+            "x-api-key": this.config.CRIA_BOT_SERVER_TOKEN,
+            "X-Internal-Service": "criaembed"
+          },
           validateStatus: status => status < 500 // Don't throw on 4xx, only 5xx
         }
       );
@@ -312,7 +318,11 @@ export class ManageService extends BaseService {
     return await this.db.removeByName(botName);
   }
 
-  async updateBot(config: IBotEmbedConfig, apiKey: string): Promise<IBotEmbed> {
+  async updateBot(
+    config: IBotEmbedConfig,
+    apiKey: string,
+    options?: { syncToCriabot?: boolean }
+  ): Promise<IBotEmbed> {
     if (!this.db) {
       console.error(
         "ManageService: Database not initialized. Pool was not provided."
@@ -342,6 +352,104 @@ export class ManageService extends BaseService {
     if (!result) {
       throw new EmbedNotFoundError();
     }
+
+    // Sync publish status back to Criabot unless Criabot itself pushed this update.
+    if (options?.syncToCriabot !== false) {
+      this.syncPublishStatusToCriabot(config.botName, result, provided).catch(
+        err => {
+          console.warn(
+            `[ManageService] Failed to sync publish status to Criabot for bot '${config.botName}': ${err.message}`
+          );
+        }
+      );
+    }
+
     return result;
+  }
+
+  private async syncPublishStatusToCriabot(
+    botName: string,
+    botConfig: IBotEmbed,
+    providedFields?: Record<string, any>
+  ): Promise<void> {
+    // Only sync if publish or developerMode was explicitly provided in the update
+    if (
+      !providedFields ||
+      (providedFields.publish === undefined &&
+        providedFields.developerMode === undefined)
+    ) {
+      return; // No publish-related fields were updated
+    }
+
+    const criabot_url = (
+      process.env.CRIA_BOT_SERVER_URL || "http://localhost:25575"
+    ).replace(/\/$/, "");
+    const criabot_api_key = process.env.CRIA_BOT_SERVER_TOKEN || "";
+
+    if (!criabot_api_key) {
+      console.warn(
+        "[ManageService] CRIA_BOT_SERVER_TOKEN not set, skipping publish sync to Criabot"
+      );
+      return;
+    }
+
+    try {
+      // Prefer status-based /manage/publish (internal-service rate-limit bypass)
+      // over /manage/update, which is still client rate-limited.
+      const publishVal =
+        providedFields && "publish" in providedFields
+          ? Boolean(providedFields.publish)
+          : Boolean(botConfig.publish);
+      const developerModeVal =
+        providedFields && "developerMode" in providedFields
+          ? providedFields.developerMode
+          : botConfig.developerMode;
+
+      let status: "published" | "develop" | "unpublished";
+      let developerKey: string | undefined;
+      if (publishVal) {
+        status = "published";
+      } else if (
+        typeof developerModeVal === "string" &&
+        developerModeVal.trim().length > 0
+      ) {
+        status = "develop";
+        developerKey = developerModeVal.trim();
+      } else {
+        status = "unpublished";
+      }
+
+      const payload: Record<string, string> = { status };
+      if (developerKey) {
+        payload.developerKey = developerKey;
+      }
+
+      const syncUrl = `${criabot_url}/bots/${encodeURIComponent(
+        botName
+      )}/manage/publish`;
+
+      await axios.patch(syncUrl, payload, {
+        headers: {
+          "x-api-key": criabot_api_key,
+          "Content-Type": "application/json",
+          "X-Internal-Service": "criaembed"
+        },
+        timeout: 5000,
+        validateStatus: (statusCode: number) =>
+          statusCode >= 200 && statusCode < 300
+      });
+
+      console.log(
+        `[ManageService] Synced publish status to Criabot for bot '${botName}'`
+      );
+    } catch (err: any) {
+      // Log but don't throw - CriaEmbed update already succeeded
+      const statusCode = err.response?.status || err.code || "unknown";
+      const message =
+        err.response?.data?.message || err.message || "Unknown error";
+      console.warn(
+        `[ManageService] Sync to Criabot failed (${statusCode}): ${message}`
+      );
+    }
   }
 }

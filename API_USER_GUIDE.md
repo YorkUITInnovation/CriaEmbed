@@ -149,8 +149,16 @@ X-Api-Key: YOUR_API_KEY
 Body:
 
 ```json
-{ "userId": 42, "role": "admin" }
+{
+  "userId": 42,
+  "payload": {
+    "year_of_study": "3rd year",
+    "faculty": "Science"
+  }
+}
 ```
+
+`payload` keys must match `personalizationPayload[].variableName` on the bot config. Omitted keys skip that template line entirely.
 
 Query params: `hideLauncher`, `inline`, `dev-key`
 

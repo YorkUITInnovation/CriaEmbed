@@ -91,7 +91,19 @@ Query Parameters:
 
 Body (JSON):
 
-- `sessionData`: object
+- `sessionData`: object (optional). Persisted in Redis for the new `chatId` returned via the `X-Chat-Id` response header.
+- `payload`: object (optional) — key/value pairs for [Personalization Payload](#personalization-payload) (may also be nested as `sessionData.payload` in the JSON body).
+
+Example:
+
+```json
+{
+  "payload": {
+    "year_of_study": "3rd year",
+    "faculty": "Science"
+  }
+}
+```
 
 Produces: `application/javascript`
 
@@ -374,6 +386,12 @@ Body (JSON): `IBotBaseEmbedConfig`
   "botLocale": "en-US",
   "botTrustWarning": "Warning message",
   "initialPrompts": [],
+  "personalizationPayload": [
+    {
+      "variableName": "year_of_study",
+      "systemMessage": "I am a [year_of_study] student."
+    }
+  ],
   "microsoftAppId": "app-id",
   "microsoftAppPassword": "app-password",
   "integrationsNoContextReply": true,
@@ -487,3 +505,16 @@ Responses:
     }
   }
   ```
+
+---
+
+## Personalization Payload
+
+See mars plugin `CRIAEMBED_AGENT_API_SPECIFICATION.md` §6.6 for the full contract. Summary:
+
+- **Config:** `personalizationPayload` on `PATCH /manage/{botId}/config` (array of `{ variableName, systemMessage }`).
+- **Runtime:** `POST /embed/{botId}/load` body `{ "payload": { "year_of_study": "3rd year", ... } }` with `X-Api-Key`.
+- **Rules:** skip entries when `payload[variableName]` is missing; no leftover `[tokens]`.
+- **Effect:** resolved block cached per `chatId`, merged into the bot system message on every embed `/send` and `/stream`.
+
+Assistant replies are returned as HTML from Criabot (markdown converted server-side) for both RAG and web-search answers.

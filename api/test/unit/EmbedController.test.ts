@@ -93,7 +93,12 @@ describe("EmbedController", () => {
     const result = await controller.getLoadEmbed(request, "1321", false, false);
 
     expect(result).toBe("");
-    expect(service.retrieveEmbed).toHaveBeenCalledWith("1321", false, false);
+    expect(service.retrieveEmbed).toHaveBeenCalledWith(
+      "1321",
+      false,
+      false,
+      undefined
+    );
     expect(request.res.setHeader).toHaveBeenCalledWith("X-Chat-Id", "chat-123");
     expect(request.res.setHeader).toHaveBeenCalledWith(
       "Content-Type",

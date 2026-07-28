@@ -261,11 +261,18 @@ describe("EmbedService", () => {
         botTrustWarning: null,
         botContact: null
       });
-      mockTrackingCache.get.mockResolvedValueOnce(null).mockResolvedValueOnce({
-        courseId: 13,
-        courseName: "Art of Art",
-        name: "I am a student and my name is Alex"
-      });
+      mockTrackingCache.get
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          courseId: 13,
+          courseName: "Art of Art",
+          name: "I am a student and my name is Alex"
+        })
+        .mockResolvedValueOnce({
+          courseId: 13,
+          courseName: "Art of Art",
+          name: "I am a student and my name is Alex"
+        });
 
       const enrichedPrompt = buildEmbedCriabotPrompt("hello", {
         courseId: 13,
@@ -571,11 +578,18 @@ describe("EmbedService", () => {
         botTrustWarning: null,
         botContact: null
       });
-      mockTrackingCache.get.mockResolvedValueOnce(null).mockResolvedValueOnce({
-        courseId: 13,
-        courseName: "Art of Art",
-        name: "I am a student and my name is Alex"
-      });
+      mockTrackingCache.get
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          courseId: 13,
+          courseName: "Art of Art",
+          name: "I am a student and my name is Alex"
+        })
+        .mockResolvedValueOnce({
+          courseId: 13,
+          courseName: "Art of Art",
+          name: "I am a student and my name is Alex"
+        });
 
       const enrichedPrompt = buildEmbedCriabotPrompt("hello", {
         courseId: 13,
@@ -630,7 +644,8 @@ describe("EmbedService", () => {
       mockTrackingCache.get
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({ criabotChatId: "started-chat-id" });
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ some: "data" });
 
       mockedAxios.post
         .mockResolvedValueOnce({
@@ -664,9 +679,13 @@ describe("EmbedService", () => {
         {},
         expect.any(Object)
       );
-      expect(mockTrackingCache.set).toHaveBeenCalledWith("chat-2", {
-        criabotChatId: "started-chat-id"
-      });
+      expect(mockTrackingCache.set).toHaveBeenCalledWith(
+        "chat-2",
+        expect.objectContaining({
+          criabotChatId: "started-chat-id",
+          some: "data"
+        })
+      );
       expect(mockedAxios.post).toHaveBeenNthCalledWith(
         3,
         `${Config.CRIA_BOT_SERVER_URL}/bots/chats/started-chat-id/stream`,
@@ -694,6 +713,7 @@ describe("EmbedService", () => {
       });
       mockTrackingCache.get
         .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
         .mockResolvedValueOnce(null);
       mockedAxios.post.mockRejectedValueOnce({
         response: { status: 503 },
@@ -707,6 +727,88 @@ describe("EmbedService", () => {
           message: "[Cria] Criabot returned HTTP 503"
         })
       });
+    });
+  });
+
+  describe("personalization payload", () => {
+    it("saveTrackingInfo resolves and stores resolvedPersonalizationBlock", async () => {
+      mockManageService.botExistsAndIsAuthorized.mockResolvedValue(true);
+      mockManageService.retrieveBot.mockResolvedValue({
+        botName: "mock-bot",
+        personalizationPayload: [
+          {
+            variableName: "year_of_study",
+            systemMessage: "I am a [year_of_study] student."
+          },
+          {
+            variableName: "faculty",
+            systemMessage: "My faculty is [faculty]."
+          }
+        ]
+      });
+      mockTrackingCache.set.mockResolvedValue("ok");
+
+      await embedService.saveTrackingInfo(
+        "mock-bot",
+        "chat-pers",
+        { payload: { year_of_study: "3rd year" } },
+        "api-key"
+      );
+
+      expect(mockTrackingCache.set).toHaveBeenCalledWith(
+        "chat-pers",
+        expect.objectContaining({
+          payload: { year_of_study: "3rd year" },
+          resolvedPersonalizationBlock: "I am a 3rd year student."
+        })
+      );
+    });
+
+    it("sendEmbedChat forwards resolvedPersonalizationBlock to criabot", async () => {
+      mockManageService.retrieveBot.mockResolvedValueOnce({
+        botName: "mock-bot",
+        publish: true,
+        botEmbedTheme: null,
+        botEmbedDefaultEnabled: true,
+        botEmbedPosition: 1,
+        botWatermark: false,
+        botLocale: "en-US",
+        initialPrompts: [],
+        botTrustWarning: null,
+        botContact: null
+      });
+      mockTrackingCache.get
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          resolvedPersonalizationBlock: "I am a 3rd year student."
+        });
+
+      mockedAxios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          status: 200,
+          code: "SUCCESS",
+          message: "ok",
+          reply: {
+            content: { content: "<p><strong>Hi</strong></p>" },
+            verified_response: true,
+            related_prompts: []
+          }
+        }
+      } as any);
+
+      await embedService.sendEmbedChat("mock-bot", "chat-pers", "hello");
+
+      expect(mockedAxios.post).toHaveBeenCalledWith(
+        `${Config.CRIA_BOT_SERVER_URL}/bots/chats/chat-pers/send`,
+        {
+          bot_name: "mock-bot",
+          prompt: "q: hello",
+          system_ephemeral_payload: "I am a 3rd year student."
+        },
+        expect.any(Object)
+      );
     });
   });
 });

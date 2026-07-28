@@ -23,6 +23,10 @@ import TrackingCache from "../database/redis/controllers/TrackingCache.js";
 import { getMySQLPool } from "../database/mysql/pool.js";
 import { buildEmbedCriabotPrompt } from "./embedPrompt.js";
 import {
+  extractSessionPayload,
+  resolvePersonalizationBlock
+} from "./personalizationPayload.js";
+import {
   IEmbedUsageLogFilters,
   IEmbedUsageLogPage,
   UsageLog
@@ -213,9 +217,17 @@ export class EmbedService extends BaseService {
 
       const trackingData = await this.trackingCache.get(chatId);
       const criabotPrompt = buildEmbedCriabotPrompt(prompt, trackingData);
+      const personalization = await this.getPersonalizationPayloadForChat(
+        chatId
+      );
 
       let response: AxiosResponse = await this.withConnRetry(() =>
-        this.postCriabotChat(criabotChatId!, canonicalBotName, criabotPrompt)
+        this.postCriabotChat(
+          criabotChatId!,
+          canonicalBotName,
+          criabotPrompt,
+          personalization
+        )
       );
 
       // If Criabot does not know this chat id yet, create one and retry once.
@@ -226,7 +238,8 @@ export class EmbedService extends BaseService {
         response = await this.postCriabotChat(
           criabotChatId,
           canonicalBotName,
-          criabotPrompt
+          criabotPrompt,
+          personalization
         );
       }
 
@@ -391,25 +404,37 @@ export class EmbedService extends BaseService {
     }
   }
 
+  private async getPersonalizationPayloadForChat(
+    chatId: string
+  ): Promise<string | undefined> {
+    const trackingData = await this.trackingCache.get(chatId);
+    const block = trackingData?.resolvedPersonalizationBlock;
+    if (typeof block === "string" && block.trim().length > 0) {
+      return block.trim();
+    }
+    return undefined;
+  }
+
   private async postCriabotChat(
     criabotChatId: string,
     canonicalBotName: string,
-    prompt: string
+    prompt: string,
+    systemEphemeralPayload?: string
   ): Promise<AxiosResponse> {
     const chatUrl = `${
       Config.CRIA_BOT_SERVER_URL
     }/bots/chats/${encodeURIComponent(criabotChatId)}/send`;
-    return this.post(
-      chatUrl,
-      {
-        bot_name: canonicalBotName,
-        prompt
-      },
-      {
-        headers: { "x-api-key": Config.CRIA_BOT_SERVER_TOKEN },
-        validateStatus: status => status < 500
-      }
-    );
+    const body: Record<string, unknown> = {
+      bot_name: canonicalBotName,
+      prompt
+    };
+    if (systemEphemeralPayload) {
+      body.system_ephemeral_payload = systemEphemeralPayload;
+    }
+    return this.post(chatUrl, body, {
+      headers: { "x-api-key": Config.CRIA_BOT_SERVER_TOKEN },
+      validateStatus: status => status < 500
+    });
   }
 
   private async startCriabotChat(): Promise<string> {
@@ -549,11 +574,18 @@ export class EmbedService extends BaseService {
         : "";
     const providedKey = typeof devKey === "string" ? devKey.trim() : "";
 
-    return configuredKey.length > 0 && providedKey.length > 0 && configuredKey === providedKey;
+    return (
+      configuredKey.length > 0 &&
+      providedKey.length > 0 &&
+      configuredKey === providedKey
+    );
   }
 
   private assertPublished(botConfig: IBotEmbed, devKey?: string): void {
-    if (botConfig.publish === true || this.isDeveloperModeAuthorized(botConfig, devKey)) {
+    if (
+      botConfig.publish === true ||
+      this.isDeveloperModeAuthorized(botConfig, devKey)
+    ) {
       return;
     }
 
@@ -613,7 +645,20 @@ export class EmbedService extends BaseService {
     apiKey: string
   ): Promise<string> {
     await this.manageService.botExistsAndIsAuthorized(botName, apiKey);
-    return this.trackingCache.set(chatId, sessionData);
+    const botConfig: IBotEmbed = await this.manageService.retrieveBot(
+      botName,
+      apiKey,
+      true
+    );
+    const resolvedPersonalizationBlock = resolvePersonalizationBlock(
+      botConfig.personalizationPayload,
+      extractSessionPayload(sessionData)
+    );
+    const toStore: Record<string, any> = { ...sessionData };
+    if (resolvedPersonalizationBlock) {
+      toStore.resolvedPersonalizationBlock = resolvedPersonalizationBlock;
+    }
+    return this.trackingCache.set(chatId, toStore);
   }
 
   public async transferTrackingInfo(previousChatId: string, newChatId: string) {
@@ -799,28 +844,30 @@ export class EmbedService extends BaseService {
   private async postCriabotChatStream(
     criabotChatId: string,
     canonicalBotName: string,
-    prompt: string
+    prompt: string,
+    systemEphemeralPayload?: string
   ): Promise<AxiosResponse> {
     const chatUrl = `${
       Config.CRIA_BOT_SERVER_URL
     }/bots/chats/${encodeURIComponent(criabotChatId)}/stream`;
 
-    return this.post(
-      chatUrl,
-      {
-        bot_name: canonicalBotName,
-        prompt,
-        extra_bots: []
+    const body: Record<string, unknown> = {
+      bot_name: canonicalBotName,
+      prompt,
+      extra_bots: []
+    };
+    if (systemEphemeralPayload) {
+      body.system_ephemeral_payload = systemEphemeralPayload;
+    }
+
+    return this.post(chatUrl, body, {
+      headers: {
+        "x-api-key": Config.CRIA_BOT_SERVER_TOKEN,
+        Accept: "text/event-stream"
       },
-      {
-        headers: {
-          "x-api-key": Config.CRIA_BOT_SERVER_TOKEN,
-          Accept: "text/event-stream"
-        },
-        responseType: "stream",
-        validateStatus: status => status < 500
-      }
-    );
+      responseType: "stream",
+      validateStatus: status => status < 500
+    });
   }
 
   async streamEmbedChat(
@@ -843,12 +890,16 @@ export class EmbedService extends BaseService {
 
       const trackingData = await this.trackingCache.get(chatId);
       const criabotPrompt = buildEmbedCriabotPrompt(prompt, trackingData);
+      const personalization = await this.getPersonalizationPayloadForChat(
+        chatId
+      );
 
       let response = await this.withConnRetry(() =>
         this.postCriabotChatStream(
           criabotChatId!,
           canonicalBotName,
-          criabotPrompt
+          criabotPrompt,
+          personalization
         )
       );
 
@@ -861,7 +912,8 @@ export class EmbedService extends BaseService {
         response = await this.postCriabotChatStream(
           criabotChatId,
           canonicalBotName,
-          criabotPrompt
+          criabotPrompt,
+          personalization
         );
       }
 
