@@ -40,6 +40,9 @@ RAGFLOW_EMBED_DIM=768
 # --- API Keys & Tokens (replace with actual values)
 CRIA_SERVER_TOKEN=<your_cria_server_token>
 CRIA_BOT_SERVER_TOKEN=<your_criabot_server_token>
+# Shared secret for Criabot→CriaEmbed internal calls (usage-log gateway).
+# Must match Criabot's CRIAEMBED_INTERNAL_TOKEN.
+EMBED_INTERNAL_TOKEN=<shared-internal-token>
 AZURE_SPEECH_API_KEY=<your_azure_speech_api_key>
 
 # --- Application Settings

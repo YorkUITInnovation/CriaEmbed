@@ -30,12 +30,16 @@ https://your-api-domain.com/
    - Retrieve Bot Config
    - Update Bot Config
    - Delete Bot Config
+7. Health & Diagnostics
+8. Internal Usage Logs
 
 ---
 
 ## 1. Authentication
 
 • **X-Api-Key** (header) is required for all `/manage/*` endpoints, `POST /embed/{botId}/load`, and `POST /embed/{botId}/load/embedding/{upsert,search}`.
+• **X-Internal-Token** is required for `GET /internal/usage-logs` (must match `EMBED_INTERNAL_TOKEN`; used by Criabot, not the widget).
+• Criabot→CriaEmbed config pushes send `X-Internal-Service: criabot` so publish sync does not bounce back.
 • Other endpoints are public but subject to rate limits.
 
 Example:
@@ -183,9 +187,11 @@ Include by adding `<script src=".../inline.js"></script>` or in a modal.
 
 GET /embed/{botId}/config?chatId={chatId}
 
-Returns public settings (theme, prompts, locale).
+Optional query: `dev-key` (same publish bypass as `/load`).
 
-Note: unpublished bots return `404 NOT_FOUND` (same as missing bot).
+Returns public settings (theme, prompts, locale, `botIconUrl`, `initialPrompts`).
+
+Note: unpublished bots return `404 NOT_FOUND` (same as missing bot) unless `dev-key` matches `developerMode`.
 
 Example:
 
@@ -203,6 +209,8 @@ Body:
 { "chatId": "newId123", "prompt": "Hello!" }
 ```
 
+`reply` is HTML from Criabot. Any personalization resolved at load time is forwarded as `system_ephemeral_payload`.
+
 Example:
 
 ```
@@ -218,7 +226,7 @@ Response:
   "timestamp":"...",
   "status":200,
   "code":"SUCCESS",
-  "reply":"Hello, how can I help?",
+  "reply":"<p>Hello, how can I help?</p>",
   "replyId":"msg456",
   "relatedPrompts":[{...}],
   "verifiedResponse":true
@@ -358,10 +366,10 @@ Example:
 curl -X POST "https://api.example.com/manage/myBot/insert" \
   -H "X-Api-Key:1234" \
   -H "Content-Type: application/json" \
-  -d '{"botName":"SupportBot","botIconUrl":"...","botGreeting":"Hi","publish":true}'
+  -d '{"botName":"SupportBot","botIconUrl":"...","botGreeting":"Hi","publish":true,"developerMode":null,"personalizationPayload":[]}'
 ```
 
-`publish` defaults to `false`; set it to `true` when the bot should be publicly available.
+`publish` defaults to `false`; set it to `true` when the bot should be publicly available. Set `developerMode` to a secret string for staging loads via `?dev-key=...` while unpublished.
 
 ### 6.2 Retrieve Bot Config
 
@@ -377,7 +385,7 @@ curl -H "X-Api-Key:1234" "https://api.example.com/manage/myBot/config"
 
 PATCH /manage/{botId}/config
 
-Same body as insert.
+Same body as insert. If you explicitly send `publish` and/or `developerMode`, CriaEmbed syncs the mapped 3-state status back to Criabot (`published` / `develop` / `unpublished`) unless the request has `X-Internal-Service: criabot`.
 
 Example:
 
@@ -385,7 +393,7 @@ Example:
 curl -X PATCH "https://api.example.com/manage/myBot/config" \
   -H "X-Api-Key:1234" \
   -H "Content-Type: application/json" \
-  -d '{"botGreeting":"Welcome back"}'
+  -d '{"botGreeting":"Welcome back","publish":true}'
 ```
 
 ### 6.4 Delete Bot Config
@@ -454,6 +462,21 @@ Response:
 ```
 
 `criabot.reachable`/`status`/`error` reflect a live health-check call to Criabot's own `/health_check` at request time.
+
+---
+
+## 8. Internal Usage Logs
+
+GET /internal/usage-logs
+
+Server-to-server only (Criabot usage-log gateway). Auth with `X-Internal-Token: $EMBED_INTERNAL_TOKEN`.
+
+```
+curl "https://api.example.com/internal/usage-logs?bot_name=myBot&page=1&limit=50" \
+  -H "X-Internal-Token: YOUR_INTERNAL_TOKEN"
+```
+
+Optional filters: `bot_id`, `bot_name`, `userid`, `timecreated_from`, `timecreated_to`.
 
 ---
 

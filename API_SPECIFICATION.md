@@ -3,6 +3,8 @@
 ## Authentication
 
 - Endpoints under `/manage`, `POST /embed/{botId}/load`, and `POST /embed/{botId}/load/embedding/{upsert,search}` require `X-Api-Key` header.
+- `GET /internal/usage-logs` requires `X-Internal-Token` matching `EMBED_INTERNAL_TOKEN` (server-to-server; used by Criabot's usage-log gateway — not the public widget API key).
+- When Criabot pushes embed config updates, it sends `X-Internal-Service: criabot` so CriaEmbed skips syncing publish status back (prevents a feedback loop). Outbound CriaEmbed→Criabot calls send `X-Internal-Service: criaembed` to bypass Criabot rate limits.
 - Other endpoints are public but may enforce rate limits.
 
 ## Error Responses
@@ -167,7 +169,8 @@ Path Parameters:
 
 Query Parameters:
 
-- `chatId` (string)
+- `chatId` (string, required)
+- `dev-key` (string, optional) — same publish bypass as `/load`
 
 Responses:
 
@@ -195,11 +198,11 @@ Responses:
   }
   ```
 - `404 NOT_FOUND` if `chatId` doesn't exist/is expired.
-  Also returned when the bot is unpublished.
+  Also returned when the bot is unpublished (unless a matching `dev-key` is supplied).
 
 ### POST /embed/{botId}/send
 
-Sends a user prompt to the embedded chat and returns the bot reply.
+Sends a user prompt to the embedded chat and returns the bot reply. Forwards to Criabot with any resolved personalization block as `system_ephemeral_payload`. Assistant `reply` text is HTML (Criabot converts markdown server-side).
 
 Path Parameters:
 
@@ -379,6 +382,7 @@ Body (JSON): `IBotBaseEmbedConfig`
   "botGreeting": "Hello!",
   "botIconUrl": "https://example.com/icon.png",
   "publish": true,
+  "developerMode": null,
   "botEmbedTheme": "#ffffff",
   "botEmbedDefaultEnabled": true,
   "botEmbedPosition": 2,
@@ -402,7 +406,7 @@ Body (JSON): `IBotBaseEmbedConfig`
 }
 ```
 
-`publish` is mirrored from Criabot and defaults to `false` (fail closed).
+`publish` is mirrored from Criabot and defaults to `false` (fail closed). `developerMode` is an optional string key; when set (and `publish` is false), callers can load the widget with `?dev-key=<key>` for staging.
 
 Note: `botEmbedPosition` values are: `1` (Bottom Left), `2` (Bottom Right), `3` (Top Right), `4` (Top Left).
 
@@ -439,8 +443,14 @@ Path Parameters:
 Headers:
 
 - `X-Api-Key` (string)
+- `X-Internal-Service` (optional) — when `criabot`, skip syncing publish/developerMode back to Criabot (Criabot already owns that write).
 
 Body (JSON): `IBotBaseEmbedConfig` (see POST /insert for example body)
+
+Behavior:
+
+- If `publish` and/or `developerMode` are explicitly present in the body (and the caller is not Criabot), CriaEmbed PATCHes Criabot's `/bots/{botId}/manage/publish` with the mapped 3-state status (`published` / `develop` / `unpublished`). Unrelated field updates do not trigger a sync.
+- Requires `CRIA_BOT_SERVER_TOKEN` for outbound sync.
 
 Responses:
 
@@ -464,7 +474,43 @@ Responses:
 
 ---
 
-## 5. Health & Diagnostics
+## 5. Internal (server-to-server)
+
+### GET /internal/usage-logs
+
+Paginated embed usage-log rows (token/cost tracking). Called by Criabot's `GET /bots/{bot_name}/usage-logs` gateway — not for browser clients.
+
+Headers:
+
+- `X-Internal-Token` (string, required) — must equal `EMBED_INTERNAL_TOKEN`
+
+Query Parameters (all optional):
+
+- `bot_id` (number)
+- `bot_name` (string)
+- `userid` (number)
+- `timecreated_from` / `timecreated_to` (unix timestamps)
+- `page` (default `1`), `limit` (default `50`)
+
+Responses:
+
+- `200 OK`
+  ```json
+  {
+    "status": 200,
+    "code": "SUCCESS",
+    "message": "Successfully retrieved usage logs.",
+    "items": [],
+    "page": 1,
+    "limit": 50,
+    "total": 0
+  }
+  ```
+- `401 UNAUTHORIZED` if the internal token is missing/invalid
+
+---
+
+## 6. Health & Diagnostics
 
 ### GET /health_check
 
@@ -512,9 +558,9 @@ Responses:
 
 See mars plugin `CRIAEMBED_AGENT_API_SPECIFICATION.md` §6.6 for the full contract. Summary:
 
-- **Config:** `personalizationPayload` on `PATCH /manage/{botId}/config` (array of `{ variableName, systemMessage }`).
-- **Runtime:** `POST /embed/{botId}/load` body `{ "payload": { "year_of_study": "3rd year", ... } }` with `X-Api-Key`.
-- **Rules:** skip entries when `payload[variableName]` is missing; no leftover `[tokens]`.
-- **Effect:** resolved block cached per `chatId`, merged into the bot system message on every embed `/send` and `/stream`.
+- **Config:** `personalizationPayload` on insert/update (`[{ variableName, systemMessage }]` with `[variableName]` placeholders).
+- **Runtime:** `POST /embed/{botId}/load` body `{ "payload": { "year_of_study": "3rd year", ... } }` with `X-Api-Key` (may also nest as `sessionData.payload`).
+- **Rules:** skip entries when `payload[variableName]` is missing/empty; no leftover `[tokens]`.
+- **Effect:** resolved block cached per `chatId`, sent to Criabot as `system_ephemeral_payload` on every embed `/send` and `/stream` (does not rewrite the bot's stored system prompt).
 
 Assistant replies are returned as HTML from Criabot (markdown converted server-side) for both RAG and web-search answers.
