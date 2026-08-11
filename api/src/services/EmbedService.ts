@@ -122,6 +122,47 @@ export interface ExtendedSendChatResponse extends SendChatResponse {
   fullResponse?: CriabotChatResponse;
 }
 
+const FILELIKE_SUFFIX_PATTERN =
+  /\.(pdf|doc|docx|ppt|pptx|xls|xlsx|txt|csv|json|xml|md)$/i;
+
+function isValidInferredHostname(hostname: string): boolean {
+  const host = (hostname || "").toLowerCase();
+  if (!host) {
+    return false;
+  }
+  if (host === "localhost") {
+    return true;
+  }
+  if (host.includes("_")) {
+    return false;
+  }
+
+  const ipv4Match = host.match(/^(\d{1,3})(?:\.(\d{1,3})){3}$/);
+  if (ipv4Match) {
+    return host.split(".").every(part => {
+      const n = Number(part);
+      return Number.isInteger(n) && n >= 0 && n <= 255;
+    });
+  }
+
+  const labels = host.split(".");
+  if (labels.length < 2) {
+    return false;
+  }
+
+  for (const label of labels) {
+    if (!label || label.startsWith("-") || label.endsWith("-")) {
+      return false;
+    }
+    if (!/^[a-z0-9-]+$/i.test(label)) {
+      return false;
+    }
+  }
+
+  const tld = labels[labels.length - 1] || "";
+  return /^[a-z]{2,24}$/i.test(tld);
+}
+
 function normalizeUrl(rawUrl: string): string | null {
   if (!rawUrl || typeof rawUrl !== "string") {
     return null;
@@ -132,14 +173,26 @@ function normalizeUrl(rawUrl: string): string | null {
     return null;
   }
 
-  const candidates = /^https?:\/\//i.test(compact)
-    ? [compact]
-    : [`https://${compact}`];
+  const hasExplicitScheme = /^https?:\/\//i.test(compact);
+  const maybeFileLike =
+    !hasExplicitScheme &&
+    FILELIKE_SUFFIX_PATTERN.test(compact) &&
+    !compact.includes("/") &&
+    !compact.includes("?") &&
+    !compact.includes("#");
+  if (maybeFileLike) {
+    return null;
+  }
+
+  const candidates = hasExplicitScheme ? [compact] : [`https://${compact}`];
 
   for (const candidate of candidates) {
     try {
       const parsed = new URL(candidate);
       if (!["http:", "https:"].includes(parsed.protocol)) {
+        continue;
+      }
+      if (!isValidInferredHostname(parsed.hostname)) {
         continue;
       }
       return parsed.toString();
@@ -164,6 +217,9 @@ function normalizeReplyHtmlLinks(html: string | null): string | null {
     const normalizedHref = normalizeUrl(rawHref) || normalizeUrl(textFallback);
 
     if (!normalizedHref) {
+      anchor.removeAttribute("href");
+      anchor.removeAttribute("target");
+      anchor.removeAttribute("rel");
       continue;
     }
 

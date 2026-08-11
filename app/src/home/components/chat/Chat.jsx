@@ -8,21 +8,64 @@ import CopyButton from "./buttons/CopyButton.jsx";
 import RelatedPrompts from "./RelatedPrompts.jsx";
 import VerifiedResponseTooltip from "./buttons/VerifiedResponseTooltip.jsx";
 
+const FILELIKE_SUFFIX_PATTERN =
+  /\.(pdf|doc|docx|ppt|pptx|xls|xlsx|txt|csv|json|xml|md)$/i;
+
+function isValidInferredHostname(hostname) {
+  const host = (hostname || "").toLowerCase();
+  if (!host) return false;
+  if (host === "localhost") return true;
+  if (host.includes("_")) return false;
+
+  const ipv4Match = host.match(/^(\d{1,3})(?:\.(\d{1,3})){3}$/);
+  if (ipv4Match) {
+    return host.split(".").every((part) => {
+      const n = Number(part);
+      return Number.isInteger(n) && n >= 0 && n <= 255;
+    });
+  }
+
+  const labels = host.split(".");
+  if (labels.length < 2) return false;
+
+  for (const label of labels) {
+    if (!label || label.startsWith("-") || label.endsWith("-")) return false;
+    if (!/^[a-z0-9-]+$/i.test(label)) return false;
+  }
+
+  const tld = labels[labels.length - 1] || "";
+  return /^[a-z]{2,24}$/i.test(tld);
+}
+
 function normalizeUrl(rawUrl) {
   if (typeof rawUrl !== "string") return null;
 
   const compact = rawUrl.trim().replace(/\s+/g, "");
   if (!compact) return null;
 
-  const candidates =
-    /^https?:\/\//i.test(compact) || /^mailto:|^tel:/i.test(compact)
-      ? [compact]
-      : [`https://${compact}`];
+  const hasExplicitScheme =
+    /^https?:\/\//i.test(compact) || /^mailto:|^tel:/i.test(compact);
+  const maybeFileLike =
+    !hasExplicitScheme &&
+    FILELIKE_SUFFIX_PATTERN.test(compact) &&
+    !compact.includes("/") &&
+    !compact.includes("?") &&
+    !compact.includes("#");
+
+  if (maybeFileLike) return null;
+
+  const candidates = hasExplicitScheme ? [compact] : [`https://${compact}`];
 
   for (const candidate of candidates) {
     try {
       const parsed = new URL(candidate);
       if (!["http:", "https:", "mailto:", "tel:"].includes(parsed.protocol)) {
+        continue;
+      }
+      if (
+        ["http:", "https:"].includes(parsed.protocol) &&
+        !isValidInferredHostname(parsed.hostname)
+      ) {
         continue;
       }
       return parsed.toString();
@@ -55,9 +98,91 @@ function friendlyUrlLabel(urlString) {
   }
 }
 
+function splitTrailingPunctuation(value) {
+  const match = value.match(/[),.;!?]+$/);
+  if (!match) {
+    return { core: value, trailing: "" };
+  }
+  const trailing = match[0];
+  const core = value.slice(0, -trailing.length);
+  return { core, trailing };
+}
+
+function linkifyPlainTextUrls(rootNode) {
+  const doc = rootNode.ownerDocument || document;
+  const walker = doc.createTreeWalker(rootNode, NodeFilter.SHOW_TEXT);
+  const textNodes = [];
+
+  let current = walker.nextNode();
+  while (current) {
+    textNodes.push(current);
+    current = walker.nextNode();
+  }
+
+  const urlPattern = /((?:https?:\/\/|www\.)[^\s<]+)/gi;
+
+  for (const textNode of textNodes) {
+    const parent = textNode.parentElement;
+    if (!parent || parent.closest("a, code, pre, script, style")) {
+      continue;
+    }
+
+    const originalText = textNode.textContent || "";
+    urlPattern.lastIndex = 0;
+    if (!urlPattern.test(originalText)) {
+      continue;
+    }
+
+    const fragment = doc.createDocumentFragment();
+    let lastIndex = 0;
+    urlPattern.lastIndex = 0;
+
+    for (const match of originalText.matchAll(urlPattern)) {
+      const fullMatch = match[0];
+      const start = match.index ?? 0;
+
+      if (start > lastIndex) {
+        fragment.appendChild(
+          doc.createTextNode(originalText.slice(lastIndex, start))
+        );
+      }
+
+      const { core, trailing } = splitTrailingPunctuation(fullMatch);
+      const normalized = normalizeUrl(core);
+
+      if (normalized) {
+        const anchor = doc.createElement("a");
+        anchor.setAttribute("href", normalized);
+        anchor.setAttribute("target", "_blank");
+        anchor.setAttribute("rel", "noopener noreferrer");
+        anchor.textContent = core;
+        fragment.appendChild(anchor);
+
+        if (trailing) {
+          fragment.appendChild(doc.createTextNode(trailing));
+        }
+      } else {
+        fragment.appendChild(doc.createTextNode(fullMatch));
+      }
+
+      lastIndex = start + fullMatch.length;
+    }
+
+    if (lastIndex < originalText.length) {
+      fragment.appendChild(doc.createTextNode(originalText.slice(lastIndex)));
+    }
+
+    textNode.replaceWith(fragment);
+  }
+}
+
 function normalizeRenderedReplyHtml(html) {
   const template = document.createElement("template");
   template.innerHTML = html;
+
+  // Convert bare URL text to anchors so links stay clickable even when
+  // upstream content is plain text instead of <a href> markup.
+  linkifyPlainTextUrls(template.content);
 
   const anchors = template.content.querySelectorAll("a");
   anchors.forEach((anchor) => {
@@ -356,7 +481,7 @@ export default class Chat extends Component {
     // User message
     if (this.props.userMessage) {
       return (
-        <ChatElementContainer id={this.elementId}>
+        <ChatElementContainer id={this.elementId} data-chat-role="user">
           <MessageContainer>
             <UserMessage
               id={this.messageElementId}
@@ -381,6 +506,7 @@ export default class Chat extends Component {
     return (
       <ChatElementContainer
         id={this.elementId}
+        data-chat-role="bot"
         className={this.props.hideInPrint ? "hideInPrint" : ""}
       >
         <MessageContainer>

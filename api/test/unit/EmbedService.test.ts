@@ -629,6 +629,50 @@ describe("EmbedService", () => {
         'href="https://www.yorku.ca/c4/what-is-c4/program/"'
       );
     });
+
+    it("removes filename-like pseudo URLs instead of keeping clickable href", async () => {
+      mockManageService.retrieveBot.mockResolvedValueOnce({
+        botName: "mock-bot",
+        publish: true,
+        botEmbedTheme: null,
+        botEmbedDefaultEnabled: true,
+        botEmbedPosition: 1,
+        botWatermark: false,
+        botLocale: "en-US",
+        initialPrompts: [],
+        botTrustWarning: null,
+        botContact: null
+      });
+      mockTrackingCache.get.mockResolvedValue(null);
+
+      mockedAxios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          status: 200,
+          code: "SUCCESS",
+          message: "ok",
+          reply: {
+            content: {
+              content:
+                '<p>For further details, refer to <a href="https://psyc-2020g_-y22-23_martin.docx/">PSYC-2020G_-Y22-23_Martin. docx</a></p>'
+            },
+            verified_response: true,
+            related_prompts: [],
+            context: null
+          }
+        }
+      } as any);
+
+      const response = await embedService.sendEmbedChat(
+        "mock-bot",
+        "chat-url-filename-like",
+        "hello"
+      );
+
+      expect(response.code).toBe("SUCCESS");
+      expect(response.reply).not.toContain("psyc-2020g_-y22-23_martin.docx");
+      expect(response.reply).not.toContain("href=");
+    });
   });
 
   describe("listUsageLogs", () => {

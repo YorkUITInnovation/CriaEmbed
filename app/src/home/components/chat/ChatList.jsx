@@ -35,7 +35,7 @@ const Container = styled.div`
   background: #ffffff;
 `;
 
-const NewResponseChip = styled.div`
+const NewResponseChip = styled.button`
   position: absolute;
   right: 14px;
   bottom: 14px;
@@ -51,6 +51,17 @@ const NewResponseChip = styled.div`
   padding: 8px 11px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
   z-index: 3;
+  cursor: pointer;
+
+  &:hover {
+    background: #ffffff;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, 0.16);
+  }
+
+  &:focus-visible {
+    outline: 2px solid #0ea5e9;
+    outline-offset: 2px;
+  }
 `;
 
 const Dot = styled.span`
@@ -102,6 +113,9 @@ export default class ChatList extends Component {
   #streamFinalized = false;
   #scrollBottomThreshold = 72;
   #lockAutoStickToBottom = false;
+  #smoothScrollRaf = null;
+  #isProgrammaticScroll = false;
+  #responseScrollPadding = 12;
 
   hasMounted = false;
 
@@ -139,15 +153,91 @@ export default class ChatList extends Component {
     return distanceFromBottom <= this.#scrollBottomThreshold;
   }
 
+  getLatestBotResponseElement() {
+    const chatList = this.getChatListElement();
+    if (!chatList) return null;
+
+    const botNodes = chatList.querySelectorAll('[data-chat-role="bot"]');
+    if (!botNodes.length) return null;
+    return botNodes.item(botNodes.length - 1);
+  }
+
+  getElementScrollTop(element, padding = this.#responseScrollPadding) {
+    const chatList = this.getChatListElement();
+    if (!chatList || !element) return null;
+
+    const listRect = chatList.getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
+    return chatList.scrollTop + (elementRect.top - listRect.top) - padding;
+  }
+
+  cancelSmoothScroll() {
+    if (this.#smoothScrollRaf) {
+      cancelAnimationFrame(this.#smoothScrollRaf);
+      this.#smoothScrollRaf = null;
+    }
+    this.#isProgrammaticScroll = false;
+  }
+
+  smoothScrollToTop(targetTop) {
+    const chatList = this.getChatListElement();
+    if (!chatList) return;
+
+    this.cancelSmoothScroll();
+
+    const maxScroll = Math.max(
+      0,
+      chatList.scrollHeight - chatList.clientHeight
+    );
+    const boundedTarget = Math.max(0, Math.min(targetTop, maxScroll));
+
+    const prefersReducedMotion =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (prefersReducedMotion) {
+      chatList.scrollTop = boundedTarget;
+      return;
+    }
+
+    const startTop = chatList.scrollTop;
+    const distance = boundedTarget - startTop;
+    if (Math.abs(distance) <= 1) {
+      chatList.scrollTop = boundedTarget;
+      return;
+    }
+
+    const duration = Math.min(520, Math.max(240, Math.abs(distance) * 0.4));
+    const startTime = performance.now();
+    const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+    this.#isProgrammaticScroll = true;
+
+    const animate = (now) => {
+      const progress = Math.min(1, (now - startTime) / duration);
+      const eased = easeOutCubic(progress);
+      chatList.scrollTop = startTop + distance * eased;
+
+      if (progress < 1) {
+        this.#smoothScrollRaf = requestAnimationFrame(animate);
+        return;
+      }
+
+      this.#smoothScrollRaf = null;
+      this.#isProgrammaticScroll = false;
+    };
+
+    this.#smoothScrollRaf = requestAnimationFrame(animate);
+  }
+
   scrollToBottom(smooth = false) {
     const chatList = this.getChatListElement();
     if (!chatList) return;
 
-    if (smooth && typeof chatList.scrollTo === "function") {
-      chatList.scrollTo({ top: chatList.scrollHeight, behavior: "smooth" });
+    if (smooth) {
+      this.smoothScrollToTop(chatList.scrollHeight - chatList.clientHeight);
       return;
     }
 
+    this.cancelSmoothScroll();
     chatList.scrollTop = chatList.scrollHeight;
   }
 
@@ -193,6 +283,7 @@ export default class ChatList extends Component {
     document.removeEventListener("commandSend", this.onCommandSend);
     document.removeEventListener("chatExpired", this.onChatExpired);
     document.removeEventListener("setAutoPlay", this.onSetAutoPlay);
+    this.cancelSmoothScroll();
   }
 
   getSnapshotBeforeUpdate() {
@@ -201,6 +292,12 @@ export default class ChatList extends Component {
 
   componentDidUpdate(_prevProps, prevState, wasNearBottomBefore) {
     const chatCountIncreased = this.state.chats.length > prevState.chats.length;
+    const addedChats = chatCountIncreased
+      ? this.state.chats.slice(prevState.chats.length)
+      : [];
+    const addedBotReply = addedChats.some(
+      (chatElement) => chatElement?.props?.userMessage === false
+    );
     const streamingStarted =
       !prevState.streaming && Boolean(this.state.streaming);
     const streamingUpdated =
@@ -228,7 +325,7 @@ export default class ChatList extends Component {
     }
 
     if (
-      (chatCountIncreased || streamingFinished) &&
+      (addedBotReply || streamingFinished) &&
       (!wasNearBottomBefore || this.#lockAutoStickToBottom)
     ) {
       this.markUnseenResponse();
@@ -241,6 +338,12 @@ export default class ChatList extends Component {
   }
 
   onChatListScroll = () => {
+    // Programmatic jump/smooth-scroll updates scrollTop every frame and is often
+    // mid-thread (not near bottom). Don't treat that as a user scroll-away.
+    if (this.#isProgrammaticScroll) {
+      return;
+    }
+
     if (!this.isNearBottom()) {
       this.#lockAutoStickToBottom = true;
     }
@@ -249,6 +352,30 @@ export default class ChatList extends Component {
       this.#lockAutoStickToBottom = false;
       this.clearUnseenResponse();
     }
+  };
+
+  onUserScrollIntent = () => {
+    // Let the user take over if they wheel/touch during a programmatic jump.
+    if (this.#isProgrammaticScroll) {
+      this.cancelSmoothScroll();
+    }
+  };
+
+  onJumpToLatestResponse = () => {
+    this.#lockAutoStickToBottom = false;
+
+    const latestBotResponse = this.getLatestBotResponseElement();
+    const targetTop = this.getElementScrollTop(latestBotResponse);
+
+    if (targetTop == null) {
+      this.scrollToBottom(true);
+    } else {
+      // Anchor to the start of the unread bot reply so the user can read it,
+      // instead of dumping them at the trailing edge of a long answer.
+      this.smoothScrollToTop(targetTop);
+    }
+
+    this.clearUnseenResponse();
   };
 
   onSetAutoPlay = (event) => {
@@ -543,7 +670,12 @@ export default class ChatList extends Component {
 
     return (
       <Frame>
-        <Container id={this.#elementId} onScroll={this.onChatListScroll}>
+        <Container
+          id={this.#elementId}
+          onScroll={this.onChatListScroll}
+          onWheel={this.onUserScrollIntent}
+          onTouchStart={this.onUserScrollIntent}
+        >
           <ChatSystemMessage
             messageMap={CHAT_STARTED_AT}
             timestamp={this.#startTime}
@@ -562,7 +694,11 @@ export default class ChatList extends Component {
           {this.state.expiredMessage}
         </Container>
         {hasUnseenResponse && (
-          <NewResponseChip role="status" aria-live="polite">
+          <NewResponseChip
+            type="button"
+            onClick={this.onJumpToLatestResponse}
+            aria-label="Jump to latest response"
+          >
             <Dot aria-hidden="true" />
             Response ready
           </NewResponseChip>
