@@ -530,6 +530,105 @@ describe("EmbedService", () => {
         embedService.sendEmbedChat("mock-bot", "chat-4", "hi")
       ).rejects.toBeInstanceOf(Error);
     });
+
+    it("normalizes malformed anchor href values in HTML replies", async () => {
+      mockManageService.retrieveBot.mockResolvedValueOnce({
+        botName: "mock-bot",
+        publish: true,
+        botEmbedTheme: null,
+        botEmbedDefaultEnabled: true,
+        botEmbedPosition: 1,
+        botWatermark: false,
+        botLocale: "en-US",
+        initialPrompts: [],
+        botTrustWarning: null,
+        botContact: null
+      });
+      mockTrackingCache.get.mockResolvedValue(null);
+
+      mockedAxios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          status: 200,
+          code: "SUCCESS",
+          message: "ok",
+          reply: {
+            content: {
+              content:
+                '<p>For details, visit <a href="https://www. yorku.ca/c4/what-is-c4/program/">Program | C4</a>.</p>'
+            },
+            verified_response: true,
+            related_prompts: [],
+            context: null
+          }
+        }
+      } as any);
+
+      const response = await embedService.sendEmbedChat(
+        "mock-bot",
+        "chat-url-normalize",
+        "hello"
+      );
+
+      expect(response.code).toBe("SUCCESS");
+      expect(response.reply).toContain(
+        'href="https://www.yorku.ca/c4/what-is-c4/program/"'
+      );
+      expect(response.reply).toContain('target="_blank"');
+      expect(response.reply).toContain('rel="noopener noreferrer"');
+      expect(mockUsageLog.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining(
+            'href="https://www.yorku.ca/c4/what-is-c4/program/"'
+          )
+        })
+      );
+    });
+
+    it("falls back to anchor text URL when href is not valid", async () => {
+      mockManageService.retrieveBot.mockResolvedValueOnce({
+        botName: "mock-bot",
+        publish: true,
+        botEmbedTheme: null,
+        botEmbedDefaultEnabled: true,
+        botEmbedPosition: 1,
+        botWatermark: false,
+        botLocale: "en-US",
+        initialPrompts: [],
+        botTrustWarning: null,
+        botContact: null
+      });
+      mockTrackingCache.get.mockResolvedValue(null);
+
+      mockedAxios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          status: 200,
+          code: "SUCCESS",
+          message: "ok",
+          reply: {
+            content: {
+              content:
+                '<p><a href="javascript:void(0)">https://www. yorku.ca/c4/what-is-c4/program/</a></p>'
+            },
+            verified_response: true,
+            related_prompts: [],
+            context: null
+          }
+        }
+      } as any);
+
+      const response = await embedService.sendEmbedChat(
+        "mock-bot",
+        "chat-url-fallback",
+        "hello"
+      );
+
+      expect(response.code).toBe("SUCCESS");
+      expect(response.reply).toContain(
+        'href="https://www.yorku.ca/c4/what-is-c4/program/"'
+      );
+    });
   });
 
   describe("listUsageLogs", () => {

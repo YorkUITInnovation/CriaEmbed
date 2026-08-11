@@ -10,12 +10,66 @@ import {
 import QueryBox from "../query/QueryBox.jsx";
 import ChatExpiredButton from "./ChatExpiredButton.jsx";
 
+const Frame = styled.div`
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  align-self: stretch;
+  width: 100%;
+  background: #ffffff;
+  isolation: isolate;
+  contain: paint;
+`;
+
 const Container = styled.div`
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
   width: 100%;
   height: 100%;
   overflow-y: scroll;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  background: #ffffff;
+`;
+
+const NewResponseChip = styled.div`
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.97);
+  color: #1f2937;
+  font-size: 12px;
+  line-height: 1;
+  padding: 8px 11px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  z-index: 3;
+`;
+
+const Dot = styled.span`
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.35);
+  animation: pulse 1.6s ease-in-out infinite;
+
+  @keyframes pulse {
+    70% {
+      box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);
+    }
+
+    100% {
+      box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+    }
+  }
 `;
 
 const ExpiredContainer = styled.div`
@@ -46,6 +100,8 @@ export default class ChatList extends Component {
   #expiredTime = null;
   #waitingChatId = null;
   #streamFinalized = false;
+  #scrollBottomThreshold = 72;
+  #lockAutoStickToBottom = false;
 
   hasMounted = false;
 
@@ -54,6 +110,7 @@ export default class ChatList extends Component {
     streaming: null,
     expiredMessage: null,
     autoPlay: false,
+    hasUnseenResponse: false,
   };
 
   getInitialChats() {
@@ -69,6 +126,41 @@ export default class ChatList extends Component {
         relatedPrompts={window.Cria.initialPrompts}
       />,
     ];
+  }
+
+  getChatListElement() {
+    return document.getElementById(this.#elementId);
+  }
+
+  isNearBottom(element = this.getChatListElement()) {
+    if (!element) return true;
+    const distanceFromBottom =
+      element.scrollHeight - (element.scrollTop + element.clientHeight);
+    return distanceFromBottom <= this.#scrollBottomThreshold;
+  }
+
+  scrollToBottom(smooth = false) {
+    const chatList = this.getChatListElement();
+    if (!chatList) return;
+
+    if (smooth && typeof chatList.scrollTo === "function") {
+      chatList.scrollTo({ top: chatList.scrollHeight, behavior: "smooth" });
+      return;
+    }
+
+    chatList.scrollTop = chatList.scrollHeight;
+  }
+
+  markUnseenResponse() {
+    if (!this.state.hasUnseenResponse) {
+      this.setState({ hasUnseenResponse: true });
+    }
+  }
+
+  clearUnseenResponse() {
+    if (this.state.hasUnseenResponse) {
+      this.setState({ hasUnseenResponse: false });
+    }
   }
 
   componentDidMount() {
@@ -103,20 +195,61 @@ export default class ChatList extends Component {
     document.removeEventListener("setAutoPlay", this.onSetAutoPlay);
   }
 
-  componentDidUpdate(_prevProps, prevState) {
-    const streamingChanged =
+  getSnapshotBeforeUpdate() {
+    return this.isNearBottom();
+  }
+
+  componentDidUpdate(_prevProps, prevState, wasNearBottomBefore) {
+    const chatCountIncreased = this.state.chats.length > prevState.chats.length;
+    const streamingStarted =
+      !prevState.streaming && Boolean(this.state.streaming);
+    const streamingUpdated =
       this.state.streaming &&
       (prevState.streaming?.message !== this.state.streaming?.message ||
         prevState.streaming?.steps?.length !==
           this.state.streaming?.steps?.length);
+    const streamingFinished =
+      Boolean(prevState.streaming) && !this.state.streaming;
 
-    if (streamingChanged || (!prevState.streaming && this.state.streaming)) {
-      const chatList = document.getElementById(this.#elementId);
-      if (chatList) {
-        chatList.scrollTop = chatList.scrollHeight;
-      }
+    const shouldStickToBottom =
+      chatCountIncreased ||
+      streamingStarted ||
+      streamingUpdated ||
+      streamingFinished;
+
+    if (
+      shouldStickToBottom &&
+      wasNearBottomBefore &&
+      !this.#lockAutoStickToBottom
+    ) {
+      this.scrollToBottom();
+      this.clearUnseenResponse();
+      return;
+    }
+
+    if (
+      (chatCountIncreased || streamingFinished) &&
+      (!wasNearBottomBefore || this.#lockAutoStickToBottom)
+    ) {
+      this.markUnseenResponse();
+    }
+
+    if (this.state.hasUnseenResponse && this.isNearBottom()) {
+      this.#lockAutoStickToBottom = false;
+      this.clearUnseenResponse();
     }
   }
+
+  onChatListScroll = () => {
+    if (!this.isNearBottom()) {
+      this.#lockAutoStickToBottom = true;
+    }
+
+    if (this.state.hasUnseenResponse && this.isNearBottom()) {
+      this.#lockAutoStickToBottom = false;
+      this.clearUnseenResponse();
+    }
+  };
 
   onSetAutoPlay = (event) => {
     this.setState({ autoPlay: event.detail });
@@ -316,6 +449,8 @@ export default class ChatList extends Component {
   onChatSend = (event) => {
     if (!event.detail) return;
 
+    this.#lockAutoStickToBottom = false;
+
     this.beginStreaming();
 
     this.insertChatElement(
@@ -404,27 +539,35 @@ export default class ChatList extends Component {
   };
 
   render() {
-    const { streaming } = this.state;
+    const { streaming, hasUnseenResponse } = this.state;
 
     return (
-      <Container id={this.#elementId}>
-        <ChatSystemMessage
-          messageMap={CHAT_STARTED_AT}
-          timestamp={this.#startTime}
-        />
-        {this.state.chats}
-        {streaming && (
-          <Chat
-            key="streaming-response"
-            time={this.getTimeString()}
-            pictureURL={this.#botIconUrl}
-            content={this.buildStreamingContent(streaming, { isLive: true })}
-            userMessage={false}
-            allowCopy={false}
+      <Frame>
+        <Container id={this.#elementId} onScroll={this.onChatListScroll}>
+          <ChatSystemMessage
+            messageMap={CHAT_STARTED_AT}
+            timestamp={this.#startTime}
           />
+          {this.state.chats}
+          {streaming && (
+            <Chat
+              key="streaming-response"
+              time={this.getTimeString()}
+              pictureURL={this.#botIconUrl}
+              content={this.buildStreamingContent(streaming, { isLive: true })}
+              userMessage={false}
+              allowCopy={false}
+            />
+          )}
+          {this.state.expiredMessage}
+        </Container>
+        {hasUnseenResponse && (
+          <NewResponseChip role="status" aria-live="polite">
+            <Dot aria-hidden="true" />
+            Response ready
+          </NewResponseChip>
         )}
-        {this.state.expiredMessage}
-      </Container>
+      </Frame>
     );
   }
 }

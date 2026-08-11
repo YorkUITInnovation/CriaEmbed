@@ -8,6 +8,87 @@ import CopyButton from "./buttons/CopyButton.jsx";
 import RelatedPrompts from "./RelatedPrompts.jsx";
 import VerifiedResponseTooltip from "./buttons/VerifiedResponseTooltip.jsx";
 
+function normalizeUrl(rawUrl) {
+  if (typeof rawUrl !== "string") return null;
+
+  const compact = rawUrl.trim().replace(/\s+/g, "");
+  if (!compact) return null;
+
+  const candidates =
+    /^https?:\/\//i.test(compact) || /^mailto:|^tel:/i.test(compact)
+      ? [compact]
+      : [`https://${compact}`];
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = new URL(candidate);
+      if (!["http:", "https:", "mailto:", "tel:"].includes(parsed.protocol)) {
+        continue;
+      }
+      return parsed.toString();
+    } catch (_error) {
+      // Try the next candidate.
+    }
+  }
+
+  return null;
+}
+
+function friendlyUrlLabel(urlString) {
+  try {
+    const parsed = new URL(urlString);
+    if (parsed.protocol === "mailto:" || parsed.protocol === "tel:") {
+      return urlString;
+    }
+
+    const host = parsed.hostname.replace(/^www\./i, "");
+    const path = parsed.pathname
+      .replace(/\/$/, "")
+      .split("/")
+      .filter(Boolean)
+      .slice(0, 2)
+      .join(" / ");
+
+    return path ? `${host} | ${path}` : host;
+  } catch (_error) {
+    return urlString;
+  }
+}
+
+function normalizeRenderedReplyHtml(html) {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+
+  const anchors = template.content.querySelectorAll("a");
+  anchors.forEach((anchor) => {
+    const rawHref = anchor.getAttribute("href") || "";
+    const textHref = anchor.textContent || "";
+    const normalizedHref = normalizeUrl(rawHref) || normalizeUrl(textHref);
+
+    if (!normalizedHref) {
+      anchor.removeAttribute("href");
+      return;
+    }
+
+    anchor.setAttribute("href", normalizedHref);
+    anchor.setAttribute("target", "_blank");
+    anchor.setAttribute("rel", "noopener noreferrer");
+
+    const currentText = (anchor.textContent || "").trim();
+    const shouldReplaceLabel =
+      !currentText ||
+      currentText === rawHref ||
+      currentText === normalizedHref ||
+      /^https?:\/\//i.test(currentText);
+
+    if (shouldReplaceLabel) {
+      anchor.textContent = friendlyUrlLabel(normalizedHref);
+    }
+  });
+
+  return template.innerHTML;
+}
+
 const BotPicture = styled.img`
   height: 30px;
   width: 30px !important;
@@ -156,7 +237,8 @@ export function parseHTMLEmojis(html) {
   // Reply HTML comes from the model/RAG pipeline, so sanitize before it ever
   // reaches dangerouslySetInnerHTML - strips <script>, event handlers and
   // javascript: URLs while keeping normal formatting and the emoji <img> tags.
-  return DOMPurify.sanitize(withEmojis);
+  const sanitized = DOMPurify.sanitize(withEmojis);
+  return normalizeRenderedReplyHtml(sanitized);
 }
 
 const CommandContextContainer = styled.div`
@@ -202,6 +284,8 @@ export function CommandContext({ command, height }) {
 }
 
 export default class Chat extends Component {
+  static AUTOSCROLL_THRESHOLD = 96;
+
   constructor(props) {
     super(props);
     this.hasMounted = false;
@@ -224,6 +308,12 @@ export default class Chat extends Component {
     );
 
     if (!(chatList && chatElement)) return;
+
+    const distanceFromBottom =
+      chatList.scrollHeight - (chatList.scrollTop + chatList.clientHeight);
+    if (distanceFromBottom > Chat.AUTOSCROLL_THRESHOLD) {
+      return;
+    }
 
     chatList.scrollTop =
       chatList.scrollHeight -

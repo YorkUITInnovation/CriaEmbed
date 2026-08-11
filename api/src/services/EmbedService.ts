@@ -122,6 +122,59 @@ export interface ExtendedSendChatResponse extends SendChatResponse {
   fullResponse?: CriabotChatResponse;
 }
 
+function normalizeUrl(rawUrl: string): string | null {
+  if (!rawUrl || typeof rawUrl !== "string") {
+    return null;
+  }
+
+  const compact = rawUrl.trim().replace(/\s+/g, "");
+  if (!compact) {
+    return null;
+  }
+
+  const candidates = /^https?:\/\//i.test(compact)
+    ? [compact]
+    : [`https://${compact}`];
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = new URL(candidate);
+      if (!["http:", "https:"].includes(parsed.protocol)) {
+        continue;
+      }
+      return parsed.toString();
+    } catch (_error) {
+      // Try the next candidate.
+    }
+  }
+
+  return null;
+}
+
+function normalizeReplyHtmlLinks(html: string | null): string | null {
+  if (!html || typeof html !== "string") {
+    return html;
+  }
+
+  const root = parse(html);
+  const anchors = root.querySelectorAll("a");
+  for (const anchor of anchors) {
+    const rawHref = anchor.getAttribute("href") || "";
+    const textFallback = anchor.text.trim();
+    const normalizedHref = normalizeUrl(rawHref) || normalizeUrl(textFallback);
+
+    if (!normalizedHref) {
+      continue;
+    }
+
+    anchor.setAttribute("href", normalizedHref);
+    anchor.setAttribute("target", "_blank");
+    anchor.setAttribute("rel", "noopener noreferrer");
+  }
+
+  return root.toString();
+}
+
 export class EmbedService extends BaseService {
   async createChat(): Promise<string> {
     return randomUUID();
@@ -275,10 +328,14 @@ export class EmbedService extends BaseService {
         reply?.total_usage?.total_tokens ?? null;
       const cost = calculateCost(promptTokens, completionTokens);
 
+      const normalizedMessage = normalizeReplyHtmlLinks(
+        reply?.content?.content || null
+      );
+
       await this.logUsage({
         botId: botConfig.id ?? null,
         prompt: reply?.prompt ?? criabotPrompt,
-        message: reply?.content?.content ?? null,
+        message: normalizedMessage,
         groupResponses: reply?.group_responses ?? null,
         promptTokens,
         completionTokens,
@@ -299,7 +356,7 @@ export class EmbedService extends BaseService {
         total_tokens: totalTokens,
         cost,
         file_name: null,
-        message: reply?.content?.content || null,
+        message: normalizedMessage,
         stacktrace: "",
         reply: null,
         criabot_response: normalizedCriabotResponse

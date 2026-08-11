@@ -8,13 +8,19 @@ import PrintDebug from "./components/PrintDebug.jsx";
 const Container = styled.div`
   margin: auto;
   height: 100svh; // Property does exist in the modern world :)
+  width: 100%;
+  min-height: 0;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  justify-content: flex-start;
+  align-items: stretch;
   flex-direction: column;
   outline: 1px solid #e3e3e3;
   box-shadow: 0 0 5px 2px rgba(227, 227, 227, 0.69);
   background: white;
+  overflow: hidden;
+  position: relative;
+  isolation: isolate;
+  contain: paint;
 `;
 
 const ErrorContainer = styled.div`

@@ -3,6 +3,63 @@ import styled from "styled-components";
 import { AnimatePresence, motion } from "framer-motion";
 import { getAccentColor } from "./agentChatTheme.js";
 
+function normalizeUrl(rawUrl) {
+  if (typeof rawUrl !== "string") return null;
+
+  const compact = rawUrl.trim().replace(/\s+/g, "");
+  if (!compact) return null;
+
+  const candidates = /^https?:\/\//i.test(compact)
+    ? [compact]
+    : [`https://${compact}`];
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = new URL(candidate);
+      if (!["http:", "https:"].includes(parsed.protocol)) {
+        continue;
+      }
+      return parsed.toString();
+    } catch (_error) {
+      // Try next candidate.
+    }
+  }
+
+  return null;
+}
+
+function friendlyUrlLabel(urlString) {
+  try {
+    const parsed = new URL(urlString);
+    const host = parsed.hostname.replace(/^www\./i, "");
+    const path = parsed.pathname
+      .replace(/\/$/, "")
+      .split("/")
+      .filter(Boolean)
+      .slice(0, 2)
+      .join(" / ");
+
+    return path ? `${host} | ${path}` : host;
+  } catch (_error) {
+    return urlString;
+  }
+}
+
+function resolveSourceLabel(source) {
+  const rawLabel = typeof source?.label === "string" ? source.label.trim() : "";
+  const normalizedUrl = normalizeUrl(source?.metadata?.url);
+
+  if (rawLabel && !/^https?:\/\//i.test(rawLabel)) {
+    return rawLabel;
+  }
+
+  if (normalizedUrl) {
+    return friendlyUrlLabel(normalizedUrl);
+  }
+
+  return rawLabel || source?.display || "Source";
+}
+
 const Wrap = styled(motion.div)`
   margin-top: 14px;
   padding-top: 12px;
@@ -137,8 +194,9 @@ export default function SourceCitations({ sources = [] }) {
   }
 
   const handleClick = (source) => {
-    if (source.type === "web" && source.metadata?.url) {
-      window.open(source.metadata.url, "_blank", "noopener,noreferrer");
+    const normalizedUrl = normalizeUrl(source?.metadata?.url);
+    if (source.type === "web" && normalizedUrl) {
+      window.open(normalizedUrl, "_blank", "noopener,noreferrer");
       return;
     }
     setSelectedSource(source);
@@ -164,7 +222,7 @@ export default function SourceCitations({ sources = [] }) {
               transition={{ duration: 0.15 }}
             >
               <span aria-hidden="true">{source.icon}</span>
-              <PillText>{source.label}</PillText>
+              <PillText>{resolveSourceLabel(source)}</PillText>
             </Pill>
           ))}
         </Pills>
@@ -198,13 +256,17 @@ export default function SourceCitations({ sources = [] }) {
                 )}
                 {selectedSource.metadata?.url && (
                   <p>
-                    <a
-                      href={selectedSource.metadata.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Open source
-                    </a>
+                    {normalizeUrl(selectedSource.metadata.url) ? (
+                      <a
+                        href={normalizeUrl(selectedSource.metadata.url)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Open source
+                      </a>
+                    ) : (
+                      "Source URL is invalid."
+                    )}
                   </p>
                 )}
                 {selectedSource.metadata?.engine && (

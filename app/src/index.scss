@@ -1,9 +1,21 @@
-html, body {
+html,
+body {
   margin: 0;
-  font-family: "IBM Plex Sans", "Roboto", -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica Neue, Arial, Noto Sans, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", Segoe UI Symbol, "Noto Color Emoji";
+  font-family: "IBM Plex Sans", "Roboto", -apple-system, BlinkMacSystemFont,
+    Segoe UI, Roboto, Helvetica Neue, Arial, Noto Sans, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", Segoe UI Symbol, "Noto Color Emoji";
+  background: #ffffff;
 
   --grey-1: rgb(100, 116, 139);
   --button-color: rgb(100, 100, 100);
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  background: #ffffff;
 }
 
 /*
@@ -70,7 +82,6 @@ a:hover {
   image-rendering: pixelated;
 }
 
-
 @keyframes jitter {
   15% {
     rotate: 8deg;
@@ -85,7 +96,6 @@ a:hover {
     transform: rotate(-10deg);
   }
 }
-
 
 @keyframes flip {
   50% {
@@ -138,14 +148,14 @@ a:hover {
 @keyframes woosh-in {
   0% {
     scale: 1;
-    rotate: 0deg
+    rotate: 0deg;
   }
   50% {
-    scale: 0.2
+    scale: 0.2;
   }
   100% {
     scale: inherit;
-    rotate: 365deg
+    rotate: 365deg;
   }
 }
 
@@ -176,7 +186,7 @@ a:hover {
   }
 }
 
-.queryTextArea[contenteditable='false'] {
+.queryTextArea[contenteditable="false"] {
   cursor: not-allowed;
 }
 
@@ -188,7 +198,6 @@ a:hover {
     rotate: -360deg;
   }
 }
-
 
 .reset-chat-spin {
   animation: spin 800ms infinite;
@@ -205,9 +214,7 @@ a:hover {
   100% {
     opacity: 1;
   }
-
 }
-
 
 .speech-listening {
   color: #e31837 !important; // Sneaky york-red
@@ -218,12 +225,10 @@ a:hover {
   animation: ghostly 2000ms infinite;
 }
 
-
-
-
 @media print {
-
-  body, html, #wrapper {
+  body,
+  html,
+  #wrapper {
     height: 100% !important;
     overflow: visible !important;
     -webkit-print-color-adjust: exact !important;
@@ -231,7 +236,7 @@ a:hover {
   }
 
   @page {
-    size: auto;   /* auto is the initial value */
+    size: auto; /* auto is the initial value */
     margin: 0;
   }
 
@@ -239,7 +244,8 @@ a:hover {
     box-shadow: none !important;
     print-color-adjust: exact;
   }
-  .hideInPrint, #queryBox {
+  .hideInPrint,
+  #queryBox {
     transform: scale(0) !important;
     margin: 0 !important;
     font-size: 0 !important;
@@ -266,7 +272,6 @@ a:hover {
     overflow: visible !important;
   }
 }
-
 
 .btn-related-prompts {
   display: none;

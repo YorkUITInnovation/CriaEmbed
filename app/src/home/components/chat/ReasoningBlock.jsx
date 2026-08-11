@@ -192,6 +192,8 @@ const HeaderSubtitle = styled.div`
   font-size: 12px;
   line-height: 1.4;
   margin-top: 2px;
+  min-height: calc(1.4em * 2);
+  max-height: calc(1.4em * 2);
   color: #6b7280;
   /* Two lines, then ellipsis - a single nowrap line clipped too much of the
      status text at the 300px minimum widget width. */
@@ -310,7 +312,7 @@ const StepRow = styled(motion.div)`
   font-size: 12px;
   line-height: 1.45;
   color: ${(props) => (props.$current ? "#111827" : "#6b7280")};
-  font-weight: ${(props) => (props.$current ? 500 : 400)};
+  font-weight: 500;
   background: ${(props) =>
     props.$current ? withAlpha(props.$accent, 0.06) : "transparent"};
   transition: background 0.25s ease, color 0.25s ease;
