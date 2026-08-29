@@ -19,6 +19,8 @@ const MessageText = styled(motion.div)`
   color: #1f2937;
   line-height: 1.65;
   word-break: break-word;
+  overflow-wrap: anywhere;
+  min-width: 0;
 
   .emoji {
     height: 18px;
@@ -31,6 +33,24 @@ const MessageText = styled(motion.div)`
 
   p:last-child {
     margin-bottom: 0;
+  }
+
+  /* Wide block content scrolls inside itself rather than stretching the reply. */
+  pre {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  img,
+  video {
+    max-width: 100%;
+    height: auto;
   }
 `;
 
@@ -69,6 +89,7 @@ const ContentStack = styled.div`
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 `;
 
 /**

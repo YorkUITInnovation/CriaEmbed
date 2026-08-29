@@ -257,6 +257,10 @@ const BotMessage = styled.span`
   word-break: break-word;
   display: inline-block;
   max-width: calc(100% - 42px);
+  /* As a flex item this defaults to min-width:auto (= min-content), which beats
+     max-width in the cascade - so one nowrap child (e.g. a long source pill)
+     could push the whole bubble past its cap. */
+  min-width: 0;
   overflow: hidden;
   margin-right: 32px;
   border-radius: 12px 12px 12px 4px;
@@ -319,7 +323,9 @@ const UserMessage = styled.span`
   padding: 10px;
   box-shadow: 1px 2px 5px 1px rgba(0, 0, 0, 0.13);
   word-break: break-word;
+  overflow-wrap: anywhere;
   display: inline;
+  min-width: 0;
   overflow: hidden;
   border-radius: 8px 8px 2px 8px;
   margin-left: 30px;
@@ -338,6 +344,7 @@ const InteractionButtons = styled.span`
 const BotMessageContainer = styled.div`
   display: flex;
   flex-direction: column;
+  min-width: 0;
 `;
 
 const ReplyContent = styled.span`

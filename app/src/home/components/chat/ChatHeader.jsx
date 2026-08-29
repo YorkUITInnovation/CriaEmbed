@@ -1,100 +1,106 @@
-import {Component} from "react";
-import {styled} from "styled-components";
-import {isDarkBasedOnBgColor, pickFontColorFromBg} from "./Chat.jsx";
+import { Component } from "react";
+import { styled } from "styled-components";
+import { isDarkBasedOnBgColor, pickFontColorFromBg } from "./Chat.jsx";
 
 const Container = styled.div`
-    width: 100%;
-    height: 85px;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    background: ${props => props.$bgColor};
-    justify-content: space-between;
-    color: ${(props) => pickFontColorFromBg(props.$bgColor)};
-    box-shadow: 0 2px 5px 2px rgba(0, 0, 0, 0.15);
-    margin-bottom: 8px;
+  width: 100%;
+  height: 85px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  background: ${(props) => props.$bgColor};
+  justify-content: space-between;
+  color: ${(props) => pickFontColorFromBg(props.$bgColor)};
+  box-shadow: 0 2px 5px 2px rgba(0, 0, 0, 0.15);
+  margin-bottom: 8px;
 `;
 
 const TextContainer = styled.div`
-    margin-left: 20px;
-    display: flex;
-    flex-direction: column;
+  margin-left: 20px;
+  display: flex;
+  flex-direction: column;
+  /* Tenant-supplied name/subtitle; keep them from pushing out the buttons. */
+  min-width: 0;
+  overflow: hidden;
 `;
 
 const ButtonContainer = styled.div`
-    display: flex;
-    margin-right: 10px;
+  display: flex;
+  margin-right: 10px;
+  flex-shrink: 0;
 `;
 
 const Logo = styled.img`
-    pointer-events: none;
-    width: 60px;
-    margin-bottom: -3px;
-    filter: ${(props) => props.$isDarkBg ? 'invert(0)' : 'invert(1)'};
-    -webkit-filter: ${(props) => props.$isDarkBg ? 'invert(0)' : 'invert(1)'};
+  pointer-events: none;
+  width: 60px;
+  margin-bottom: -3px;
+  filter: ${(props) => (props.$isDarkBg ? "invert(0)" : "invert(1)")};
+  -webkit-filter: ${(props) => (props.$isDarkBg ? "invert(0)" : "invert(1)")};
 `;
 
 const LogoLink = styled.a`
-    cursor: pointer;
-    margin-left: 20px;
-    margin-right: 14px;
-    user-select: none;
+  cursor: pointer;
+  margin-left: 20px;
+  margin-right: 14px;
+  user-select: none;
 
-    &:hover {
-        opacity: 0.8;
-    }
+  &:hover {
+    opacity: 0.8;
+  }
 
-    &:active {
-        opacity: 0.6;
-    }
-
+  &:active {
+    opacity: 0.6;
+  }
 `;
 
 const Header1 = styled.span`
-    font-size: 20px;
-    font-weight: bold;
+  font-size: 20px;
+  font-weight: bold;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `;
 
 const Header2 = styled.span`
-    font-size: 13px;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `;
 
 const CloseMenuButton = styled.button`
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: white;
-    padding: 5px 10px;
-    font-weight: bold;
-    border-radius: 5px;
-    
-    &:hover {
-        background: rgba(0, 0, 0, 0.1);
-    }
-    
-    &:active {
-        background: rgba(0, 0, 0, 0.2);
-    }
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: white;
+  padding: 5px 10px;
+  font-weight: bold;
+  border-radius: 5px;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.1);
+  }
+
+  &:active {
+    background: rgba(0, 0, 0, 0.2);
+  }
 `;
 
 export function getTheme() {
-
   const embedTheme = window.Cria.embedTheme;
 
   if (!embedTheme) {
     return null;
   }
 
-  if (!(/^#[0-9A-F]{6}$/i.test(embedTheme))) {
+  if (!/^#[0-9A-F]{6}$/i.test(embedTheme)) {
     return null;
   }
 
   return embedTheme;
-
 }
 
 export default class ChatHeader extends Component {
-
   logoId = "cria-logo";
   isJumping = false;
   jumpCount = 0;
@@ -103,7 +109,6 @@ export default class ChatHeader extends Component {
     super(props);
     this.embedTheme = getTheme();
   }
-
 
   doCriaJump() {
     if (this.isJumping) return;
@@ -137,11 +142,9 @@ export default class ChatHeader extends Component {
       criaLogo.classList.remove(animationClass);
       this.isJumping = false;
     }, animationDuration);
-
   }
 
   render() {
-
     const bgTheme = getTheme();
 
     let logoEnabled;
@@ -165,28 +168,27 @@ export default class ChatHeader extends Component {
             src={"/icons/aura.png"}
           />
         </LogoLink>
-      )
+      );
     }
 
     return (
       <Container $bgColor={bgTheme || "rgb(192, 38, 38)"}>
         <TextContainer>
-          <Header1>
-            {window.Cria.botName || "New Bot"}
-          </Header1>
-          <Header2>
-            {window.Cria.botSubName || "New Bot Subtitle"}
-          </Header2>
+          <Header1>{window.Cria.botName || "New Bot"}</Header1>
+          <Header2>{window.Cria.botSubName || "New Bot Subtitle"}</Header2>
         </TextContainer>
         <ButtonContainer>
           {logo}
-          <CloseMenuButton onClick={
-            () => {
+          <CloseMenuButton
+            onClick={() => {
               (window.parent || window).postMessage(
-                JSON.stringify({action: "criaSetEmbedEnabled", value: false}),
+                JSON.stringify({ action: "criaSetEmbedEnabled", value: false }),
                 "*"
               );
-            }}>—</CloseMenuButton>
+            }}
+          >
+            —
+          </CloseMenuButton>
         </ButtonContainer>
       </Container>
     );

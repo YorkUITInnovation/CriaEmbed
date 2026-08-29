@@ -29,6 +29,7 @@ const Container = styled.div`
   width: 100%;
   height: 100%;
   overflow-y: scroll;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;

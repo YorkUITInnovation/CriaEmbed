@@ -37,6 +37,8 @@ export class StreamingChatHandler {
       citations: [],
       errors: [],
       elapsed_ms: 0,
+      // Web-search outcome from the done event, when the turn ran one.
+      web_search: null,
     };
 
     try {
@@ -180,6 +182,7 @@ export class StreamingChatHandler {
 
       case "done":
         result.elapsed_ms = event.elapsed_ms || 0;
+        result.web_search = event.web_search || null;
         break;
 
       default:

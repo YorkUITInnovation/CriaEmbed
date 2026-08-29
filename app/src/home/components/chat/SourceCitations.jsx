@@ -2,63 +2,7 @@ import React, { useState } from "react";
 import styled from "styled-components";
 import { AnimatePresence, motion } from "framer-motion";
 import { getAccentColor } from "./agentChatTheme.js";
-
-function normalizeUrl(rawUrl) {
-  if (typeof rawUrl !== "string") return null;
-
-  const compact = rawUrl.trim().replace(/\s+/g, "");
-  if (!compact) return null;
-
-  const candidates = /^https?:\/\//i.test(compact)
-    ? [compact]
-    : [`https://${compact}`];
-
-  for (const candidate of candidates) {
-    try {
-      const parsed = new URL(candidate);
-      if (!["http:", "https:"].includes(parsed.protocol)) {
-        continue;
-      }
-      return parsed.toString();
-    } catch (_error) {
-      // Try next candidate.
-    }
-  }
-
-  return null;
-}
-
-function friendlyUrlLabel(urlString) {
-  try {
-    const parsed = new URL(urlString);
-    const host = parsed.hostname.replace(/^www\./i, "");
-    const path = parsed.pathname
-      .replace(/\/$/, "")
-      .split("/")
-      .filter(Boolean)
-      .slice(0, 2)
-      .join(" / ");
-
-    return path ? `${host} | ${path}` : host;
-  } catch (_error) {
-    return urlString;
-  }
-}
-
-function resolveSourceLabel(source) {
-  const rawLabel = typeof source?.label === "string" ? source.label.trim() : "";
-  const normalizedUrl = normalizeUrl(source?.metadata?.url);
-
-  if (rawLabel && !/^https?:\/\//i.test(rawLabel)) {
-    return rawLabel;
-  }
-
-  if (normalizedUrl) {
-    return friendlyUrlLabel(normalizedUrl);
-  }
-
-  return rawLabel || source?.display || "Source";
-}
+import { normalizeUrl, resolveSourceLabel } from "./sourceLabels.js";
 
 const Wrap = styled(motion.div)`
   margin-top: 14px;
@@ -79,6 +23,7 @@ const Pills = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  min-width: 0;
 `;
 
 const Pill = styled(motion.button)`
@@ -86,6 +31,9 @@ const Pill = styled(motion.button)`
   align-items: center;
   gap: 6px;
   max-width: 100%;
+  /* Without min-width:0 a flex item cannot shrink below its content, so the
+     label's ellipsis never engages and a long source widens the whole reply. */
+  min-width: 0;
   padding: 5px 10px;
   border-radius: 999px;
   border: 1px solid rgba(0, 0, 0, 0.08);
@@ -123,6 +71,7 @@ const PillText = styled.span`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 `;
 
 const PopoverOverlay = styled(motion.div)`
@@ -151,12 +100,14 @@ const PopoverTitle = styled.h4`
   margin: 0 0 10px;
   font-size: 14px;
   color: #111827;
+  overflow-wrap: anywhere;
 `;
 
 const PopoverBody = styled.div`
   font-size: 13px;
   color: #4b5563;
   line-height: 1.55;
+  overflow-wrap: anywhere;
 
   p {
     margin: 0 0 8px;

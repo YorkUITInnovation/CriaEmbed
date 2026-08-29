@@ -1,0 +1,33 @@
+# The image only needs package.json, ./dist and entrypoint.sh. Everything else
+# is build-time only and would otherwise be uploaded as build context.
+
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Sources and build tooling - dist/ is built on the host by build.sh.
+src
+public
+index.html
+vite.config.js
+vite.config.js.timestamp-*
+.eslintrc*
+
+# Tests never ship.
+test
+**/*.test.mjs
+**/*.test.js
+
+# VCS, editor and OS noise
+.git
+.gitignore
+.dockerignore
+Dockerfile
+build.sh
+.vscode
+.idea
+.DS_Store
+*.local
+*.log

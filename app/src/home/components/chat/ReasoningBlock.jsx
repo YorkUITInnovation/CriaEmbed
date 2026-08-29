@@ -6,6 +6,8 @@ import {
   derivePhases,
   formatStepMessage,
   getAccentColor,
+  isTerminalStepState,
+  summarizePhases,
   withAlpha,
 } from "./agentChatTheme.js";
 
@@ -439,8 +441,15 @@ export default function ReasoningBlock({
   const accent = getAccentColor();
   // One row per engine, not one per start/done event.
   const phases = derivePhases(steps);
-  const doneCount = phases.filter((p) => p.state === "done").length;
-  const allDone = phases.length > 0 && doneCount === phases.length;
+  // A failed stage is finished too - counting only "done" left the panel stuck
+  // on "Processing" with no completion state whenever a stage errored.
+  const {
+    finished: finishedCount,
+    failed: failedCount,
+    allDone,
+    allSucceeded,
+    percent: progressPercent,
+  } = summarizePhases(phases);
   const displaySummary =
     summary || buildThinkingSummary({ steps, elapsedMs, sourceCount });
   const shouldUseFallbackProgress = isActive && phases.length === 0;
@@ -481,8 +490,10 @@ export default function ReasoningBlock({
   const fallbackMessage = FALLBACK_PROGRESS_STEPS[fallbackStepIndex];
   const title = isActive
     ? "Thinking"
-    : allDone
+    : allSucceeded
     ? "Finished processing"
+    : allDone
+    ? "Finished with warnings"
     : "Processing";
 
   const subtitle = isActive
@@ -491,10 +502,9 @@ export default function ReasoningBlock({
       : fallbackMessage
     : displaySummary;
 
-  const orbColor = allDone && !isActive ? "#10b981" : accent;
-  const progressPercent = phases.length
-    ? Math.round((doneCount / phases.length) * 100)
-    : 0;
+  // Amber, not green, when a stage failed: the answer arrived but is degraded.
+  const orbColor =
+    allDone && !isActive ? (failedCount ? "#d97706" : "#10b981") : accent;
 
   return (
     <ThinkingShell
@@ -521,7 +531,7 @@ export default function ReasoningBlock({
               $active={spinning}
               $size={spinning ? "9px" : allDone ? "18px" : "10px"}
             >
-              {!spinning && allDone && <CheckIcon />}
+              {!spinning && allSucceeded && <CheckIcon />}
             </OrbCore>
           </StatusOrb>
 
@@ -540,12 +550,18 @@ export default function ReasoningBlock({
           {phases.length > 0 && (
             <>
               <CountBadge
-                $color={allDone ? "#059669" : accent}
+                $color={
+                  allSucceeded ? "#059669" : failedCount ? "#b45309" : accent
+                }
                 $bg={
-                  allDone ? "rgba(16, 185, 129, 0.1)" : withAlpha(accent, 0.1)
+                  allSucceeded
+                    ? "rgba(16, 185, 129, 0.1)"
+                    : failedCount
+                    ? "rgba(217, 119, 6, 0.12)"
+                    : withAlpha(accent, 0.1)
                 }
               >
-                {doneCount}/{phases.length}
+                {finishedCount}/{phases.length}
               </CountBadge>
               <Chevron
                 $open={showTimeline}
@@ -576,8 +592,11 @@ export default function ReasoningBlock({
               transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
             >
               {phases.map((phase, index) => {
+                const isFailed = phase.state === "error";
                 const isDone = phase.state === "done";
-                const isCurrent = isActive && index === activeIndex && !isDone;
+                const isFinished = isTerminalStepState(phase.state);
+                const isCurrent =
+                  isActive && index === activeIndex && !isFinished;
 
                 return (
                   <StepRow
@@ -590,14 +609,14 @@ export default function ReasoningBlock({
                   >
                     <MarkerColumn
                       $last={index === phases.length - 1}
-                      $done={isDone}
-                      $accent={accent}
+                      $done={isFinished}
+                      $accent={isFailed ? "#d97706" : accent}
                       aria-hidden="true"
                     >
                       <MarkerDot
-                        $done={isDone}
+                        $done={isFinished}
                         $current={isCurrent}
-                        $accent={accent}
+                        $accent={isFailed ? "#d97706" : accent}
                       >
                         {isDone && <CheckIcon />}
                       </MarkerDot>

@@ -17,12 +17,14 @@ FROM        base AS with_packages
 ENV         USER=cria HOME=/home/cria
 WORKDIR     /home/cria
 
-#           PYTHON PACKAGES
+#           NODE PACKAGES
 
 COPY        --chown=cria:cria package.json ./
 
+#           Runtime only serves ./dist via `serve`, so devDependencies
+#           (vite, eslint, prettier) are not needed in the image.
 USER        cria
-RUN         npm install
+RUN         npm install --omit=dev --no-audit --no-fund
 
 FROM        with_packages AS final
 

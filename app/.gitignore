@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Vite writes these next to the config on some runs.
+vite.config.js.timestamp-*
