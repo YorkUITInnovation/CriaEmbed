@@ -41,10 +41,13 @@ export class EmbedPopupJSController extends BaseController {
     @Request() request: e.Request
   ): Promise<string> {
     const botIdLiteral = JSON.stringify(botId);
+    // Function replacements: a string replacement expands `$&`/`$\``/`$'`/`$n`,
+    // and neither JSON.stringify nor the raw botId escapes `$` -- which would
+    // splice template text into the served JavaScript. See EmbedPopupHTMLController.
     const embedPopupScript = (EMBED_BASE_SCRIPT + " ")
-      .replaceAll(/\$botIdLiteral/g, botIdLiteral)
-      .replaceAll(/\$botId/g, botId)
-      .replaceAll(/\$hideLauncher/g, hideLauncher.toString());
+      .replaceAll(/\$botIdLiteral/g, () => botIdLiteral)
+      .replaceAll(/\$botId/g, () => botId)
+      .replaceAll(/\$hideLauncher/g, () => hideLauncher.toString());
 
     this.setStatus(200);
 

@@ -20,6 +20,7 @@ This document describes the high-level architecture, components, and data flows 
 Two main applications:
 
 1. **API Service** (`/api`)
+
    - Node.js + TypeScript; TSOA generates OpenAPI/routes
    - Controllers: chats, embed, manage, integrations, **internal** (usage logs)
    - MySQL (bot embed config, usage logs) + Redis (sessions, message/audio cache)
@@ -74,7 +75,19 @@ flowchart LR
 ### 5.2 Client Application (`/app`)
 
 - **Entry**: `src/index.jsx` → `Home.jsx`
-- **Chat UI**: streaming bubbles, reasoning timeline (`ReasoningBlock.jsx`), citations, commands
+- **Chat UI**: `Chat.jsx` (orchestration + reply sanitising), `StreamingChatBubble.jsx`
+  (one agent turn: thinking status, skeleton, streamed answer, sources),
+  `ReasoningBlock.jsx` (reasoning timeline), `SourceCitations.jsx` (source pills + detail popover)
+- **Chat UI helpers**: `chatSteps.js` (maps stream events to reasoning-timeline steps; skips the
+  "N sources" label at 0), `sourceLabels.js` (`normalizeUrl` + display labels for source pills)
+- **Reply sanitising**: model/RAG reply HTML is emoji-parsed then run through **DOMPurify**
+  before it reaches `dangerouslySetInnerHTML` (`Chat.jsx::parseHTMLEmojis`, used by both render
+  sites). Anchors are then normalised to an `http(s)`/`mailto`/`tel` allow-list and given
+  `rel="noopener noreferrer"`. Never bypass `parseHTMLEmojis` when rendering reply HTML.
+- **Sources**: the widget renders exactly the `citations` array Criabot sends. Criabot only cites
+  sources that survived reranking into the model's context, so an "I couldn't find anything" reply
+  legitimately carries zero sources — `sourceCount` must come from `citations.length`, never from
+  a retrieval count.
 - **Config**: `src/config.js` (API base URLs, `dev-key` support for unpublished bots)
 - **Build**: Vite (`vite.config.js`); Docker via `app/Dockerfile`
 
@@ -143,4 +156,4 @@ Publish sync (MARS / manage API → Criabot): `PATCH /manage/{botId}/config` wit
 
 ---
 
-_Document last updated: 2026-07-31 — publish/developerMode, personalization payload, bidirectional Criabot sync, and internal usage-log gateway reflected._
+_Document last updated: 2026-09-03_

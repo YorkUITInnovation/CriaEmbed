@@ -1,6 +1,6 @@
 #           BASIC FILE SETUP
 
-FROM        node:22-bullseye-slim AS base
+FROM        node:22-bookworm-slim AS base
 
 LABEL       author="Isaac Kogan" maintainer="koganisa@yorku.ca"
 

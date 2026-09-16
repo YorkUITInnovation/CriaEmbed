@@ -311,7 +311,8 @@ describe("EmbedService", () => {
           prompt: enrichedPrompt
         },
         expect.objectContaining({
-          headers: { "x-api-key": Config.CRIA_BOT_SERVER_TOKEN }
+          headers: { "x-api-key": Config.CRIA_BOT_SERVER_TOKEN },
+          timeout: Config.CRIA_BOT_CHAT_TIMEOUT_MS
         })
       );
 
@@ -953,5 +954,52 @@ describe("EmbedService", () => {
         expect.any(Object)
       );
     });
+  });
+});
+
+describe("EmbedService — developer-mode publish gate", () => {
+  // Called off the prototype rather than a constructed instance: `new EmbedService()`
+  // opens a real MySQL pool that outlives Jest's teardown ("import after the Jest
+  // environment has been torn down"). The gate is a pure function of its arguments
+  // and touches no instance state.
+  const gate = (developerMode: unknown, devKey?: string): boolean =>
+    (EmbedService.prototype as any).isDeveloperModeAuthorized.call(
+      {},
+      { developerMode } as any,
+      devKey
+    );
+
+  it("accepts an exactly matching dev key", () => {
+    expect(gate("s3cret-dev-key", "s3cret-dev-key")).toBe(true);
+  });
+
+  it("trims surrounding whitespace on both sides", () => {
+    expect(gate("  s3cret-dev-key  ", " s3cret-dev-key ")).toBe(true);
+  });
+
+  it.each([
+    ["a wrong key of equal length", "s3cret-dev-key", "s3cret-dev-kez"],
+    ["a matching prefix", "s3cret-dev-key", "s3cret"],
+    ["a longer key", "s3cret-dev-key", "s3cret-dev-key-extra"],
+    ["an empty provided key", "s3cret-dev-key", ""],
+    ["a whitespace-only provided key", "s3cret-dev-key", "   "]
+  ])("rejects %s", (_label, configured, provided) => {
+    expect(gate(configured, provided)).toBe(false);
+  });
+
+  it.each([
+    ["no dev key at all", "s3cret-dev-key", undefined],
+    ["an unconfigured bot", null, "anything"],
+    ["an empty configured value", "", "anything"],
+    ["a whitespace-only configured value", "   ", "anything"],
+    ["a non-string configured value", 42, "42"]
+  ])("fails closed for %s", (_label, configured, provided) => {
+    expect(gate(configured, provided as string | undefined)).toBe(false);
+  });
+
+  // timingSafeEqual throws on a length mismatch; the length guard must run first
+  // so a wrong-length key is a plain `false`, never a 500.
+  it("does not throw on a length mismatch", () => {
+    expect(() => gate("short", "a-much-longer-candidate-key")).not.toThrow();
   });
 });

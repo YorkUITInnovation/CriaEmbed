@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { randomUUID, timingSafeEqual } from "crypto";
 import { VectorStoreService } from "./VectorStoreService.js";
 import { BaseService } from "./BaseService.js";
 import {
@@ -546,6 +546,7 @@ export class EmbedService extends BaseService {
     }
     return this.post(chatUrl, body, {
       headers: { "x-api-key": Config.CRIA_BOT_SERVER_TOKEN },
+      timeout: Config.CRIA_BOT_CHAT_TIMEOUT_MS,
       validateStatus: status => status < 500
     });
   }
@@ -687,11 +688,22 @@ export class EmbedService extends BaseService {
         : "";
     const providedKey = typeof devKey === "string" ? devKey.trim() : "";
 
-    return (
-      configuredKey.length > 0 &&
-      providedKey.length > 0 &&
-      configuredKey === providedKey
-    );
+    if (configuredKey.length === 0 || providedKey.length === 0) {
+      return false;
+    }
+
+    // Constant-time compare: `===` short-circuits on the first differing byte,
+    // leaking the matching prefix length to a timing attacker.
+    const configuredBytes = Buffer.from(configuredKey, "utf8");
+    const providedBytes = Buffer.from(providedKey, "utf8");
+
+    // timingSafeEqual throws on a length mismatch, and the lengths themselves
+    // are not secret, so compare them first.
+    if (configuredBytes.length !== providedBytes.length) {
+      return false;
+    }
+
+    return timingSafeEqual(configuredBytes, providedBytes);
   }
 
   private assertPublished(botConfig: IBotEmbed, devKey?: string): void {
@@ -723,7 +735,9 @@ export class EmbedService extends BaseService {
     await this.ensureGreetingMessage(chatId, botGreeting);
 
     if (debugEnabled()) {
-      console.log("Returning embed config for bot: " + botName, botConfig);
+      // botConfig carries `developerMode`, the publish-gate bypass secret.
+      const { developerMode: _redacted, ...loggableConfig } = botConfig;
+      console.log("Returning embed config for bot: " + botName, loggableConfig);
     }
 
     const config: EmbedPublicConfig = {

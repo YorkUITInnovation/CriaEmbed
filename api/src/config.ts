@@ -42,6 +42,7 @@ type Config = {
   CRIA_SERVER_URL: string;
   CRIA_BOT_SERVER_URL: string;
   CRIA_BOT_SERVER_TOKEN: string;
+  CRIA_BOT_CHAT_TIMEOUT_MS: number;
   CRIA_SERVER_TOKEN: string;
   // Shared secret for server-to-server calls INTO CriaEmbed (e.g. Criabot's
   // usage-log retrieval gateway) - distinct from CRIA_BOT_SERVER_TOKEN, which
@@ -73,6 +74,9 @@ function processConfig(config: Config): Config {
     trimTrailingSlashes(value).replace(/\/embed-api$/i, "");
 
   config.CRIA_BOT_SERVER_URL = trimTrailingSlashes(config.CRIA_BOT_SERVER_URL);
+  const chatTimeoutMs = Number(process.env.CRIA_BOT_CHAT_TIMEOUT_MS || 90000);
+  config.CRIA_BOT_CHAT_TIMEOUT_MS =
+    Number.isFinite(chatTimeoutMs) && chatTimeoutMs > 0 ? chatTimeoutMs : 90000;
   config.CRIA_SERVER_URL = trimTrailingSlashes(config.CRIA_SERVER_URL);
   config.WEB_APP_URL = trimTrailingSlashes(config.WEB_APP_URL);
   config.THIS_APP_URL = stripApiMountSuffix(config.THIS_APP_URL);

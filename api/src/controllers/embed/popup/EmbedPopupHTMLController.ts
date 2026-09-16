@@ -56,9 +56,14 @@ export class EmbedPopupHTMLController extends BaseController {
         : botId;
     const botIdAttr = htmlAttrEscape(safeBotId);
     const botIdJsKey = htmlAttrEscape(JSON.stringify(safeBotId));
+    // Function replacements, never string ones: in a string replacement `$&`,
+    // `$\``, `$'` and `$n` are substitution patterns, and htmlAttrEscape does not
+    // escape `$`. A botId of "$\`" therefore spliced the preceding template text
+    // -- raw `<`, `"` and `>` -- straight into the attribute value and broke out
+    // of it. A function replacement is returned verbatim, with no expansion.
     const embedPopupScript = (EMBED_BASE_SCRIPT + " ")
-      .replaceAll(/\$botIdJsKey/g, botIdJsKey)
-      .replaceAll(/\$botId/g, botIdAttr);
+      .replaceAll(/\$botIdJsKey/g, () => botIdJsKey)
+      .replaceAll(/\$botId/g, () => botIdAttr);
 
     this.setStatus(200);
 

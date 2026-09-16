@@ -14,6 +14,7 @@ This service is configured via environment variables. For local development, cre
 # --- Service Ports & URLs
 CRIA_SERVER_URL="http://localhost/"
 CRIA_BOT_SERVER_URL="http://localhost:25575/"
+CRIA_BOT_CHAT_TIMEOUT_MS=90000
 THIS_APP_URL="http://localhost:3003/embed-api"
 WEB_APP_URL="http://localhost:4000/embed"
 

@@ -73,3 +73,54 @@ describe("EmbedPopupHTMLController — botId reflection is XSS-safe", () => {
     expect(sent).toContain("window.CRIA[&quot;my-bot_1&quot;].switch()");
   });
 });
+
+describe("EmbedPopupHTMLController — $-substitution injection", () => {
+  let controller: EmbedPopupHTMLController;
+  let request: any;
+  let sent: string;
+
+  beforeEach(() => {
+    controller = new EmbedPopupHTMLController({} as any);
+    sent = "";
+    request = {
+      res: {
+        setHeader: jest.fn(),
+        send: jest.fn((body: string) => {
+          sent = body;
+        })
+      }
+    };
+  });
+
+  // htmlAttrEscape covers & < > " ' but not `$`, and the escaped value used to be
+  // passed as a *string* replacement to replaceAll, where `$&`, "$`", `$'` and `$n`
+  // are substitution patterns. "$`" therefore spliced the text preceding the match
+  // -- raw markup -- into the attribute value.
+  it.each(["$`", "$'", "$&", "$1", "$$"])(
+    "does not splice raw template markup for botId %j",
+    async botId => {
+      await controller.getPopupEmbedHtml(botId, request);
+
+      // The wrapper div is the first thing in the template; if a substitution
+      // pattern expanded, a second raw copy of it lands inside an attribute.
+      const wrapperCount = (sent.match(/<div class="cria-wrapper"/g) || [])
+        .length;
+      expect(wrapperCount).toBe(1);
+      expect(sent).not.toContain('botId="<div');
+    }
+  );
+
+  it("reflects a $-containing botId literally", async () => {
+    await controller.getPopupEmbedHtml("$`", request);
+    expect(sent).toContain('botId="$`"');
+  });
+
+  it("still reflects an ordinary botId unchanged", async () => {
+    await controller.getPopupEmbedHtml(
+      "Moodle 5 laptop dev-The art of Art",
+      request
+    );
+    // Real bot names contain spaces, so the fix must not narrow the accepted set.
+    expect(sent).toContain('botId="Moodle 5 laptop dev-The art of Art"');
+  });
+});
