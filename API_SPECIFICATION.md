@@ -480,6 +480,10 @@ Responses:
 
 Paginated embed usage-log rows (token/cost tracking). Called by Criabot's `GET /bots/{bot_name}/usage-logs` gateway — not for browser clients.
 
+**Cost semantics:** when `CRIAEMBED_MODEL_COST_RATES` is unset or missing the
+active model, `cost` is `null` and chat responses include `cost_unknown: true`.
+Treat null as **unknown**, never as free (`0`).
+
 Headers:
 
 - `X-Internal-Token` (string, required) — must equal `EMBED_INTERNAL_TOKEN`

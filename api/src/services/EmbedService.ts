@@ -31,7 +31,7 @@ import {
   IEmbedUsageLogPage,
   UsageLog
 } from "../database/mysql/controllers/UsageLog.js";
-import { calculateCost } from "./costCalculator.js";
+import { calculateCost, isCostUnknown } from "./costCalculator.js";
 
 const EMBED_BASE_SCRIPT: string = fs
   .readFileSync(path.join(Config.ASSETS_FOLDER_PATH, "/public/loader.js"))
@@ -82,6 +82,8 @@ export type CriaGetGPTResponseFunctionResponse = {
   completion_tokens: number | null;
   total_tokens: number | null;
   cost: number | null;
+  /** Null cost means unknown (no rates configured), not free. */
+  cost_unknown: boolean;
   file_name: string | null;
   message: string | null;
   stacktrace: string;
@@ -411,6 +413,7 @@ export class EmbedService extends BaseService {
         completion_tokens: completionTokens,
         total_tokens: totalTokens,
         cost,
+        cost_unknown: isCostUnknown(cost),
         file_name: null,
         message: normalizedMessage,
         stacktrace: "",
@@ -955,7 +958,9 @@ export class EmbedService extends BaseService {
       reply: apiResponse.message, // Reply refers to the CONTENT reply
       replyId: replyId,
       relatedPrompts: criaBotResponse?.reply?.related_prompts || null,
-      verifiedResponse: verifiedResponse == null ? null : verifiedResponse
+      verifiedResponse: verifiedResponse == null ? null : verifiedResponse,
+      cost: apiResponse.cost,
+      cost_unknown: Boolean(apiResponse.cost_unknown)
     };
 
     if (fullResponse) {

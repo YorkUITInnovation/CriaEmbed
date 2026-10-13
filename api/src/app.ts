@@ -2,7 +2,7 @@ import express from "express";
 import e, { json, NextFunction, Request, Response, urlencoded } from "express";
 import swagger from "swagger-ui-express";
 import { RegisterRoutes } from "../build/routes.js";
-import swaggerJson from "../build/swagger.json";
+import { createRequire } from "node:module";
 import { ValidateError } from "tsoa";
 import cors from "cors";
 import helmet from "helmet";
@@ -12,14 +12,30 @@ import axios from "axios";
 import { CriaResponse } from "./models/CriaResponse.js";
 import path from "path";
 import multer from "multer";
+import {
+  CORRELATION_HEADER,
+  correlationMiddleware,
+  installAxiosCorrelationInterceptor
+} from "./correlation.js";
+import { METRICS, metricsMiddleware } from "./httpMetrics.js";
+import { probeMysqlReady, probeRedisReady } from "./readyzProbes.js";
+
+// Node 22+ rejects bare JSON ESM imports without import attributes; require stays portable.
+const require = createRequire(import.meta.url);
+const swaggerJson = require("../build/swagger.json");
 
 export const app = express();
 export const baseRouter = express.Router();
+
+installAxiosCorrelationInterceptor();
 
 // Number of proxy hops in front of this service, so req.ip is the real client
 // (used for rate-limit keying). Too high re-enables XFF spoofing; too low
 // collapses everyone onto the proxy IP. Default 1 (single reverse proxy).
 app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS ?? 1));
+
+app.use(correlationMiddleware);
+app.use(metricsMiddleware);
 
 // CSP off + CORP cross-origin so the cross-origin embed loader keeps working;
 // helmet still adds nosniff, referrer-policy and the other safe defaults.
@@ -43,7 +59,8 @@ const CORS_OPTIONS: cors.CorsOptions = {
     "Authorization",
     "Content-Type",
     "X-Api-Key",
-    "X-Requested-With"
+    "X-Requested-With",
+    CORRELATION_HEADER
   ]
 };
 
@@ -164,14 +181,53 @@ app.disable("x-powered-by");
 // Register routs
 RegisterRoutes(baseRouter);
 
-// Health check endpoint (for docker health checks) - register after routes but before 404 handler
+// Liveness: process-only (never restart healthy pods on dependency outage).
+const livenessPayload = () => ({
+  status: "ok",
+  service: "CriaEmbed API",
+  timestamp: new Date().toISOString(),
+  uptime: process.uptime(),
+  version: process.env.npm_package_version || "1.0.0"
+});
+
 baseRouter.get("/health_check", (_: Request, res: Response) => {
-  res.status(200).json({
-    status: "ok",
+  res.status(200).json(livenessPayload());
+});
+
+baseRouter.get("/livez", (_: Request, res: Response) => {
+  res.status(200).json(livenessPayload());
+});
+
+// Low-cardinality Prometheus text (network-private; no student labels).
+baseRouter.get("/metrics", (_: Request, res: Response) => {
+  res
+    .status(200)
+    .type("text/plain; version=0.0.4; charset=utf-8")
+    .send(METRICS.renderPrometheus());
+});
+
+// Readiness: bounded dependency checks; failure removes the pod from service.
+baseRouter.get("/readyz", async (_: Request, res: Response) => {
+  const checks: Record<string, string> = { mysql: "ok", redis: "ok" };
+
+  try {
+    await probeMysqlReady();
+  } catch {
+    checks.mysql = "unavailable";
+  }
+  try {
+    await probeRedisReady();
+  } catch {
+    checks.redis = "unavailable";
+  }
+
+  const healthy = Object.values(checks).every(v => v === "ok");
+  METRICS.setReady(healthy);
+  res.status(healthy ? 200 : 503).json({
+    status: healthy ? "ok" : "degraded",
     service: "CriaEmbed API",
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    version: process.env.npm_package_version || "1.0.0"
+    checks,
+    timestamp: new Date().toISOString()
   });
 });
 

@@ -24,11 +24,35 @@ export async function initializeDatabase(): Promise<void> {
     multipleStatements: true
   });
 
+  // GET_LOCK on the same connection as schema DDL (auto-releases on drop).
+  // Acquire inside try/finally so a failed getConnection still ends the pool.
+  const lockTimeout = Math.max(
+    parseInt(process.env.DB_INIT_LOCK_TIMEOUT_SECONDS || "300", 10),
+    30
+  );
   try {
-    await bootstrapPool.query(schema);
-    console.log(
-      `[MySQL Bootstrap] Database '${Config.MYSQL_DATABASE}' and base tables ready.`
-    );
+    const conn = await bootstrapPool.getConnection();
+    try {
+      const [lockRows]: any = await conn.query("SELECT GET_LOCK(?, ?) AS got", [
+        "criaembed:db-init",
+        lockTimeout
+      ]);
+      if (lockRows?.[0]?.got !== 1) {
+        throw new Error(
+          `Could not acquire the database init lock within ${lockTimeout}s; another replica is likely still migrating.`
+        );
+      }
+      try {
+        await conn.query(schema);
+        console.log(
+          `[MySQL Bootstrap] Database '${Config.MYSQL_DATABASE}' and base tables ready.`
+        );
+      } finally {
+        await conn.query("SELECT RELEASE_LOCK(?)", ["criaembed:db-init"]);
+      }
+    } finally {
+      conn.release();
+    }
   } finally {
     await bootstrapPool.end();
   }

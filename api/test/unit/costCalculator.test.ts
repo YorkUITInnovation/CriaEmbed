@@ -1,4 +1,11 @@
 describe("costCalculator", () => {
+  it("isCostUnknown is true when cost is null", async () => {
+    const { isCostUnknown } = await import("../../src/services/costCalculator");
+    expect(isCostUnknown(null)).toBe(true);
+    expect(isCostUnknown(0)).toBe(false);
+    expect(isCostUnknown(0.01)).toBe(false);
+  });
+
   const ORIGINAL_ENV = process.env.CRIAEMBED_MODEL_COST_RATES;
 
   afterEach(() => {
@@ -6,20 +13,20 @@ describe("costCalculator", () => {
     jest.resetModules();
   });
 
-  it("returns 0 when no rate table is configured", async () => {
+  it("returns null when no rate table is configured (unknown, not free)", async () => {
     delete process.env.CRIAEMBED_MODEL_COST_RATES;
     jest.resetModules();
     const { calculateCost } = await import("../../src/services/costCalculator");
 
-    expect(calculateCost(1000, 1000)).toBe(0);
+    expect(calculateCost(1000, 1000)).toBeNull();
   });
 
-  it("returns 0 when the JSON rate table is malformed", async () => {
+  it("returns null when the JSON rate table is malformed", async () => {
     process.env.CRIAEMBED_MODEL_COST_RATES = "not json";
     jest.resetModules();
     const { calculateCost } = await import("../../src/services/costCalculator");
 
-    expect(calculateCost(1000, 1000)).toBe(0);
+    expect(calculateCost(1000, 1000)).toBeNull();
   });
 
   it("computes cost from configured per-1k rates for the default model", async () => {
@@ -44,7 +51,7 @@ describe("costCalculator", () => {
     expect(calculateCost(1000, 0, "gpt-4")).toBeCloseTo(0.03, 6);
   });
 
-  it("treats null/undefined token counts as 0", async () => {
+  it("treats null/undefined token counts as 0 when rates exist", async () => {
     process.env.CRIAEMBED_MODEL_COST_RATES = JSON.stringify({
       default: { promptPer1k: 0.01, completionPer1k: 0.02 }
     });

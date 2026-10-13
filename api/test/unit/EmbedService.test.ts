@@ -319,6 +319,9 @@ describe("EmbedService", () => {
       expect(resp.status).toBe(200);
       expect(resp.code).toBe("SUCCESS");
       expect(resp.reply).toBe("ok");
+      // No CRIAEMBED_MODEL_COST_RATES in unit env → cost unknown, not $0.
+      expect(resp.cost).toBeNull();
+      expect(resp.cost_unknown).toBe(true);
     });
 
     it("should log usage with the full reply data instead of discarding it", async () => {

@@ -18,11 +18,12 @@ USER        cria
 ENV         USER=cria HOME=/home/cria
 WORKDIR     /home/cria
 
-#           PYTHON PACKAGES
+#           NODE PACKAGES
 
-COPY        package.json ./
+# npm ci: reproducible install; fails if package.json and lockfile drift.
+COPY        package.json package-lock.json ./
 
-RUN         npm install
+RUN         npm ci --omit=dev --no-audit --no-fund
 
 FROM        with_packages AS final
 

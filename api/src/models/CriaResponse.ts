@@ -1,40 +1,57 @@
-import {CriabotChatResponseRelatedPrompt, EmbedPublicConfig} from "../services/EmbedService.js";
+import {
+  CriabotChatResponseRelatedPrompt,
+  EmbedPublicConfig
+} from "../services/EmbedService.js";
 
-export type CriaResponseStatus = 200 | 400 | 300 | 401 | 500 | 301 | 302 | 409 | 403 | 405 | 429 | 404 | 422 | 502 | 503;
+export type CriaResponseStatus =
+  | 200
+  | 400
+  | 300
+  | 401
+  | 500
+  | 301
+  | 302
+  | 409
+  | 403
+  | 405
+  | 429
+  | 404
+  | 422
+  | 502
+  | 503;
 export type CriaResponseCode =
-    "ERROR"
-    | "UNAUTHORIZED"
-    | "SUCCESS"
-    | "NOT_FOUND"
-    | "DUPLICATE"
-    | "TOO_MANY_REQUESTS"
-    | "INVALID";
-
+  | "ERROR"
+  | "UNAUTHORIZED"
+  | "SUCCESS"
+  | "NOT_FOUND"
+  | "DUPLICATE"
+  | "TOO_MANY_REQUESTS"
+  | "INVALID";
 
 export type CriaResponse = {
   status: CriaResponseStatus;
   timestamp: string;
   code: CriaResponseCode;
   message: string;
-  detail?: Record<string, object>
-}
-
+  detail?: Record<string, object>;
+};
 
 export interface SendChatResponse extends CriaResponse {
   reply: string | null;
   replyId: string | null;
   relatedPrompts: CriabotChatResponseRelatedPrompt[] | null;
   verifiedResponse: boolean | null;
+  /** USD estimate when rates are configured; null means unknown, not free. */
+  cost?: number | null;
+  /** True when cost could not be priced (missing rate card). */
+  cost_unknown?: boolean;
 }
 
 export interface EmbedConfigResponse extends CriaResponse {
-  config?: EmbedPublicConfig
+  config?: EmbedPublicConfig;
 }
 
-export interface ChatAudioResponse extends CriaResponse {
-
-}
-
+export interface ChatAudioResponse extends CriaResponse {}
 
 export interface ExistsChatResponse extends CriaResponse {
   exists: boolean | null;
@@ -44,9 +61,7 @@ export interface CreateChatResponse extends CriaResponse {
   chatId: string | null;
 }
 
-
 export const API_KEY_HEADER_NAME: string = "X-Api-Key";
-
 
 export class CriaError extends Error {
   public readonly payload: CriaResponse;
@@ -60,16 +75,17 @@ export class CriaError extends Error {
       timestamp: Date.now().toString(),
       code: "ERROR"
     });
-
   }
 
   private strippedResponse(response: CriaResponse): CriaResponse {
     return {
       status: response.status,
       timestamp: response.timestamp || Date.now().toString(),
-      message: response.status === 401 ? "You are unauthorized for this action :(" : response.message,
+      message:
+        response.status === 401
+          ? "You are unauthorized for this action :("
+          : response.message,
       code: response.code
-    }
+    };
   }
 }
-
