@@ -5,7 +5,7 @@
   "author": "Isaac Kogan",
   "type": "module",
   "scripts": {
-    "copy-dist": "copyfiles -u 1 src/assets/* src/assets/**/* src/assets/**/**/* dist/src",
+    "copy-dist": "copyfiles -u 1 src/assets/* src/assets/**/* src/assets/**/**/* dist/src && copyfiles -u 1 build/swagger.json dist/build",
     "dev": "concurrently \"nodemon -x tsx src/server.ts\" \"nodemon -x tsoa spec-and-routes\"",
     "build": "tsoa spec-and-routes && tsc && npm run copy-dist",
     "start": "node ./dist/src/server.js",
