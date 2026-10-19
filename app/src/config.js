@@ -27,6 +27,7 @@ export default class CriaConfig {
   initialPrompts;
   botTrustWarning;
   botContact;
+  chatTimeoutMs;
   devKey;
 
   // Diagnostics

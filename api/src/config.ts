@@ -28,6 +28,8 @@ type Config = {
   REDIS_HOST: string;
   REDIS_USERNAME: string;
   REDIS_PASSWORD: string;
+  REDIS_DB: number;
+  RATE_LIMIT_REDIS_DB: number;
 
   // Rate Limits
   RATE_LIMIT_EMBED_MINUTE_MAX: string;
@@ -67,16 +69,42 @@ type Config = {
   RAGFLOW_INDEX_NAME: string;
 };
 
+export function redisDatabase(value: string | undefined, name: string): number {
+  if (value === undefined) return 0;
+  if (!/^(0|[1-9]\d*)$/.test(value) || !Number.isSafeInteger(Number(value))) {
+    throw new Error(`${name} must be a non-negative integer`);
+  }
+  return Number(value);
+}
+
+export function chatBudget(value: string | undefined): number {
+  if (value === undefined) return 90000;
+  const parsed = Number(value);
+  if (
+    !/^[1-9]\d*$/.test(value) ||
+    !Number.isSafeInteger(parsed) ||
+    parsed > 2147483647
+  ) {
+    throw new Error(
+      "CRIA_BOT_CHAT_TIMEOUT_MS must be a positive integer no greater than 2147483647"
+    );
+  }
+  return parsed;
+}
+
 function processConfig(config: Config): Config {
+  const redisDb = redisDatabase(process.env.REDIS_DB, "REDIS_DB");
+  const rateLimitRedisDb = redisDatabase(
+    process.env.RATE_LIMIT_REDIS_DB ?? process.env.REDIS_DB,
+    "RATE_LIMIT_REDIS_DB"
+  );
   const trimTrailingSlashes = (value: string | undefined): string =>
     (value || "").replace(/\/+$/, "");
   const stripApiMountSuffix = (value: string | undefined): string =>
     trimTrailingSlashes(value).replace(/\/embed-api$/i, "");
 
   config.CRIA_BOT_SERVER_URL = trimTrailingSlashes(config.CRIA_BOT_SERVER_URL);
-  const chatTimeoutMs = Number(process.env.CRIA_BOT_CHAT_TIMEOUT_MS || 90000);
-  config.CRIA_BOT_CHAT_TIMEOUT_MS =
-    Number.isFinite(chatTimeoutMs) && chatTimeoutMs > 0 ? chatTimeoutMs : 90000;
+  const chatTimeoutMs = chatBudget(process.env.CRIA_BOT_CHAT_TIMEOUT_MS);
   config.CRIA_SERVER_URL = trimTrailingSlashes(config.CRIA_SERVER_URL);
   config.WEB_APP_URL = trimTrailingSlashes(config.WEB_APP_URL);
   config.THIS_APP_URL = stripApiMountSuffix(config.THIS_APP_URL);
@@ -90,7 +118,12 @@ function processConfig(config: Config): Config {
   config.RATE_LIMIT_CHAT_HOUR_MAX ||= "1";
   config.RATE_LIMIT_CHAT_DAY_MAX ||= "1";
 
-  return config;
+  return {
+    ...config,
+    REDIS_DB: redisDb,
+    RATE_LIMIT_REDIS_DB: rateLimitRedisDb,
+    CRIA_BOT_CHAT_TIMEOUT_MS: chatTimeoutMs
+  };
 }
 
 export function debugEnabled(): boolean {

@@ -195,6 +195,27 @@ describe("EmbedService", () => {
   });
 
   describe("retrieveEmbedConfig greeting propagation", () => {
+    it("returns a numeric widget budget with the normal configuration", async () => {
+      const config = await embedService.retrieveEmbedConfig(
+        "chat-1",
+        "mock-bot"
+      );
+      expect(typeof config.chatTimeoutMs).toBe("number");
+      expect(config.chatTimeoutMs).toBe(Config.CRIA_BOT_CHAT_TIMEOUT_MS);
+    });
+    it("publishes the configured API budget for the widget loading timer", async () => {
+      const previous = Config.CRIA_BOT_CHAT_TIMEOUT_MS;
+      Config.CRIA_BOT_CHAT_TIMEOUT_MS = 120000;
+      try {
+        const config = await embedService.retrieveEmbedConfig(
+          "chat-1",
+          "mock-bot"
+        );
+        expect(config.chatTimeoutMs).toBe(120000);
+      } finally {
+        Config.CRIA_BOT_CHAT_TIMEOUT_MS = previous;
+      }
+    });
     it("re-writes the cached greeting when the config greeting changed", async () => {
       // Existing chat holds a stale greeting; the edited config value must win.
       mockMessageCache.get.mockResolvedValue("Old greeting");
@@ -768,11 +789,47 @@ describe("EmbedService", () => {
             "x-api-key": Config.CRIA_BOT_SERVER_TOKEN,
             Accept: "text/event-stream"
           },
-          responseType: "stream"
+          responseType: "stream",
+          timeout: Config.CRIA_BOT_CHAT_TIMEOUT_MS
         })
       );
       expect(response.status).toBe(200);
       expect(response.data).toBe(upstreamStream);
+    });
+
+    it("uses CRIA_BOT_CHAT_TIMEOUT_MS for stream posts (not BaseService 30s default)", async () => {
+      mockManageService.retrieveBot.mockResolvedValueOnce({
+        botName: "mock-bot",
+        publish: true,
+        botEmbedTheme: null,
+        botEmbedDefaultEnabled: true,
+        botEmbedPosition: 1,
+        botWatermark: false,
+        botLocale: "en-US",
+        initialPrompts: [],
+        botTrustWarning: null,
+        botContact: null
+      });
+      mockTrackingCache.get
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null);
+
+      mockedAxios.post.mockResolvedValueOnce({
+        status: 200,
+        data: { pipe: jest.fn() }
+      } as any);
+
+      await embedService.streamEmbedChat("mock-bot", "chat-timeout", "hello");
+
+      const streamCall = mockedAxios.post.mock.calls.find(call =>
+        String(call[0]).endsWith("/stream")
+      );
+      expect(streamCall).toBeDefined();
+      const streamTimeout = Number(streamCall![2].timeout);
+      expect(streamTimeout).toBe(Number(Config.CRIA_BOT_CHAT_TIMEOUT_MS));
+      // Guard against silently falling back to BaseService's 30s default.
+      expect(streamTimeout).toBeGreaterThan(30000);
     });
 
     it("should create a Criabot chat and retry stream when chat id is unknown", async () => {

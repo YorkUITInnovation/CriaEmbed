@@ -18,6 +18,7 @@ function requestKey(
 class HttpMetricsStore {
   ready = 0;
   private requests = new Map<RequestKey, number>();
+  private rateLimited = 0;
   private durationSum = new Map<RequestKey, number>();
   private durationCount = new Map<RequestKey, number>();
   private durationBucket = new Map<string, number>();
@@ -35,14 +36,16 @@ class HttpMetricsStore {
     const statusClass = `${Math.floor(statusCode / 100)}xx`;
     const key = requestKey(method.toUpperCase(), route, statusClass);
     this.requests.set(key, (this.requests.get(key) || 0) + 1);
+    if (statusCode === 429) this.rateLimited += 1;
     this.durationSum.set(key, (this.durationSum.get(key) || 0) + durationS);
     this.durationCount.set(key, (this.durationCount.get(key) || 0) + 1);
     for (const bound of BUCKETS) {
       const le = bound === Infinity ? "+Inf" : String(bound);
-      if (durationS <= bound) {
-        const bKey = `${key}|${le}`;
-        this.durationBucket.set(bKey, (this.durationBucket.get(bKey) || 0) + 1);
-      }
+      const bKey = `${key}|${le}`;
+      this.durationBucket.set(
+        bKey,
+        (this.durationBucket.get(bKey) || 0) + Number(durationS <= bound)
+      );
     }
   }
 
@@ -65,9 +68,14 @@ class HttpMetricsStore {
           `route="${route}",status_class="${statusClass}"} ${count}`
       );
     }
+    lines.push(
+      "# HELP cria_http_rate_limited_total HTTP responses with status 429.",
+      "# TYPE cria_http_rate_limited_total counter",
+      `cria_http_rate_limited_total{service="criaembed"} ${this.rateLimited}`
+    );
 
     lines.push(
-      "# HELP cria_http_request_duration_seconds Time until response headers (TTFB).",
+      "# HELP cria_http_request_duration_seconds Time until response finish (including streamed body).",
       "# TYPE cria_http_request_duration_seconds histogram"
     );
     for (const [bKey, count] of [...this.durationBucket.entries()].sort()) {

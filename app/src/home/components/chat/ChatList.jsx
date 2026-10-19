@@ -7,8 +7,8 @@ import {
   CHAT_STARTED_AT,
   ChatSystemMessage,
 } from "./ChatSystemMessage.jsx";
-import QueryBox from "../query/QueryBox.jsx";
 import ChatExpiredButton from "./ChatExpiredButton.jsx";
+import { chatTimeoutMs } from "../../utils/chatTimeout.js";
 
 const Frame = styled.div`
   position: relative;
@@ -112,6 +112,7 @@ export default class ChatList extends Component {
   #expiredTime = null;
   #waitingChatId = null;
   #streamFinalized = false;
+  #streamTimer = null;
   #scrollBottomThreshold = 72;
   #lockAutoStickToBottom = false;
   #smoothScrollRaf = null;
@@ -417,6 +418,8 @@ export default class ChatList extends Component {
   clearStreaming() {
     this.#waitingChatId = null;
     this.#streamFinalized = false;
+    clearTimeout(this.#streamTimer);
+    this.#streamTimer = null;
     this.setState({ streaming: null });
   }
 
@@ -424,11 +427,12 @@ export default class ChatList extends Component {
     const waitingChatId = Math.random();
     this.#waitingChatId = waitingChatId;
     this.#streamFinalized = false;
-
-    setTimeout(() => {
+    clearTimeout(this.#streamTimer);
+    // Follow the API-published budget (90s fallback for older APIs).
+    this.#streamTimer = setTimeout(() => {
       if (this.#waitingChatId !== waitingChatId) return;
       this.onChatTimeout();
-    }, QueryBox.CHAT_TIMEOUT);
+    }, chatTimeoutMs(typeof window !== "undefined" ? window.Cria : undefined));
 
     this.setState({
       streaming: { ...EMPTY_STREAM },
@@ -534,6 +538,8 @@ export default class ChatList extends Component {
     if (this.#streamFinalized) return;
     this.#streamFinalized = true;
     this.#waitingChatId = null;
+    clearTimeout(this.#streamTimer);
+    this.#streamTimer = null;
 
     const streaming = this.state.streaming;
     if (!streaming) return;

@@ -10,6 +10,7 @@ import { StartText } from "../chat/ChatSystemMessage.jsx";
 import BotTrustWarning from "./buttons/BotTrustWarning.jsx";
 import PoweredByAura from "./buttons/PoweredByAura.jsx";
 import StreamingChatHandler from "../../utils/StreamingChatHandler.js";
+import { chatTimeoutMs } from "../../utils/chatTimeout.js";
 
 const OuterContainer = styled.div`
   width: 100%;
@@ -61,12 +62,11 @@ export async function checkChatExpired() {
 }
 
 export default class QueryBox extends Component {
-  static CHAT_TIMEOUT = 60 * 1000;
-
   #sendButtonId = "query-send-button";
   #mounted = true;
   #chatExpiredCheckInterval = 120 * 1000;
   #chatExpired = false;
+  #loadingTimer;
   state = { isLoading: false };
 
   componentDidMount() {
@@ -100,6 +100,7 @@ export default class QueryBox extends Component {
   }
 
   setLoading(isLoading) {
+    if (!isLoading) clearTimeout(this.#loadingTimer);
     this.setState({ isLoading: isLoading });
   }
 
@@ -145,8 +146,11 @@ export default class QueryBox extends Component {
 
   async sendChat(content) {
     // Set timeout
+    const timeout = chatTimeoutMs(window.Cria);
     this.setLoading(true);
-    setTimeout(this.onChatTimeout.bind(this), QueryBox.CHAT_TIMEOUT);
+    clearTimeout(this.#loadingTimer);
+    // This controls loading UI only; SSE cancellation remains separate.
+    this.#loadingTimer = setTimeout(this.onChatTimeout.bind(this), timeout);
 
     document.dispatchEvent(new CustomEvent("chatSend", { detail: content }));
 
@@ -158,6 +162,10 @@ export default class QueryBox extends Component {
     } else {
       return this.sendChatRegular(content);
     }
+  }
+
+  componentWillUnmount() {
+    clearTimeout(this.#loadingTimer);
   }
 
   async sendChatStreaming(content) {

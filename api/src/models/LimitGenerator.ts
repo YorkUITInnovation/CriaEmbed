@@ -42,6 +42,7 @@ function buildStore(prefix: string): Options["store"] | undefined {
         port: parseInt(Config.REDIS_PORT),
         username: Config.REDIS_USERNAME,
         password: Config.REDIS_PASSWORD,
+        db: Config.RATE_LIMIT_REDIS_DB,
         lazyConnect: false,
         // Fail fast on Redis blips; rate limiting must degrade, not stall.
         commandTimeout: 1000,

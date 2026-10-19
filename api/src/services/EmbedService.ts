@@ -54,6 +54,7 @@ type EmbedPopupConfig = {
 };
 
 export type EmbedPublicConfig = {
+  chatTimeoutMs?: number;
   botId: string;
   botName: string;
   botSubName?: string | null;
@@ -744,6 +745,7 @@ export class EmbedService extends BaseService {
     }
 
     const config: EmbedPublicConfig = {
+      chatTimeoutMs: Config.CRIA_BOT_CHAT_TIMEOUT_MS,
       botId: botConfig.botName,
       botName: botConfig.botTitle || botConfig.botName,
       botSubName: botConfig.botSubTitle,
@@ -992,12 +994,14 @@ export class EmbedService extends BaseService {
       body.system_ephemeral_payload = systemEphemeralPayload;
     }
 
+    // Match send-path budget; BaseService defaults to 30s which aborts long RAG streams.
     return this.post(chatUrl, body, {
       headers: {
         "x-api-key": Config.CRIA_BOT_SERVER_TOKEN,
         Accept: "text/event-stream"
       },
       responseType: "stream",
+      timeout: Config.CRIA_BOT_CHAT_TIMEOUT_MS,
       validateStatus: status => status < 500
     });
   }

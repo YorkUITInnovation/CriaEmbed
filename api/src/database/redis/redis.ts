@@ -7,6 +7,7 @@ export const REDIS_POOL: InstanceType<typeof RedisDefault> = new RedisDefault({
   host: Config.REDIS_HOST,
   username: Config.REDIS_USERNAME,
   password: Config.REDIS_PASSWORD,
+  db: Config.REDIS_DB,
   connectTimeout: 40_000,
   commandTimeout: 40_000
 });
