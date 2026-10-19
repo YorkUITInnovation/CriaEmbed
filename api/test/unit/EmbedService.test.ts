@@ -1027,6 +1027,169 @@ describe("EmbedService", () => {
       expect(response.data).toBe(upstreamStream);
     });
 
+    it("writes a usage-log record from the streamed done event (usage parity)", async () => {
+      const upstream = new PassThrough();
+      mockedAxios.post.mockResolvedValueOnce({
+        status: 200,
+        data: upstream
+      } as any);
+
+      const response = await embedService.streamEmbedChat(
+        "mock-bot",
+        "chat-usage",
+        "hello"
+      );
+      const chunks: string[] = [];
+      const finished = new Promise<void>(resolve => {
+        response.data.on("data", (c: Buffer) => chunks.push(c.toString()));
+        response.data.on("end", () => resolve());
+      });
+      upstream.end(
+        'data: {"type":"chunk","content":"Hi ","format":"markdown"}\n\n' +
+          'data: {"type":"chunk","content":"there","format":"markdown"}\n\n' +
+          'data: {"type":"done","elapsed_ms":42,"usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}\n\n'
+      );
+      await finished;
+
+      // Forwarding is untouched by the tap.
+      expect(chunks.join("")).toContain('"type":"done"');
+      expect(mockUsageLog.insert).toHaveBeenCalledTimes(1);
+      const record = mockUsageLog.insert.mock.calls[0][0];
+      expect(record).toMatchObject({
+        prompt_tokens: 10,
+        completion_tokens: 5,
+        total_tokens: 15,
+        message: "Hi there"
+      });
+      expect(record.cost).not.toBeUndefined();
+    });
+
+    it("does not write a usage record for a stream without done", async () => {
+      const upstream = new PassThrough();
+      mockedAxios.post.mockResolvedValueOnce({
+        status: 200,
+        data: upstream
+      } as any);
+
+      const response = await embedService.streamEmbedChat(
+        "mock-bot",
+        "chat-no-done",
+        "hello"
+      );
+      const finished = new Promise<void>(resolve => {
+        response.data.on("data", () => {});
+        response.data.on("end", () => resolve());
+      });
+      upstream.end('data: {"type":"chunk","content":"partial"}\n\n');
+      await finished;
+      expect(mockUsageLog.insert).not.toHaveBeenCalled();
+    });
+
+    it("registered cancel destroys the upstream stream (client disconnect)", async () => {
+      const upstream = new PassThrough();
+      mockedAxios.post.mockResolvedValueOnce({
+        status: 200,
+        data: upstream
+      } as any);
+
+      let cancelFn: (() => void) | undefined;
+      const response = await embedService.streamEmbedChat(
+        "mock-bot",
+        "chat-cancel",
+        "hello",
+        undefined,
+        {
+          registerCancel: cancel => {
+            cancelFn = cancel;
+          }
+        }
+      );
+      response.data.on("data", () => {});
+      expect(upstream.destroyed).toBe(false);
+      cancelFn!();
+      expect(upstream.destroyed).toBe(true);
+      expect(response.data.destroyed).toBe(true);
+    });
+
+    it("registers cancellation before upstream headers and aborts a late response", async () => {
+      let resolvePost: ((value: any) => void) | undefined;
+      mockedAxios.post.mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            resolvePost = resolve;
+          })
+      );
+      const upstream = new PassThrough();
+      let cancelFn: (() => void) | undefined;
+
+      const pending = embedService.streamEmbedChat(
+        "mock-bot",
+        "chat-early-cancel",
+        "hello",
+        undefined,
+        {
+          registerCancel: cancel => {
+            cancelFn = cancel;
+          }
+        }
+      );
+      // Let preparation run until the upstream request is in flight.
+      await new Promise(resolve => setImmediate(resolve));
+      await new Promise(resolve => setImmediate(resolve));
+      expect(cancelFn).toBeDefined();
+      expect(resolvePost).toBeDefined();
+
+      // Client disconnects while headers are still pending.
+      cancelFn!();
+      resolvePost!({ status: 200, data: upstream } as any);
+
+      const response = await pending;
+      expect(upstream.destroyed).toBe(true);
+      expect((response.data as any).destroyed).toBe(true);
+    });
+
+    it("terminal EOF waits for the usage write attempt to settle", async () => {
+      let resolveInsert: ((value: any) => void) | undefined;
+      mockUsageLog.insert.mockImplementationOnce(
+        () =>
+          new Promise(resolve => {
+            resolveInsert = resolve;
+          })
+      );
+      const upstream = new PassThrough();
+      mockedAxios.post.mockResolvedValueOnce({
+        status: 200,
+        data: upstream
+      } as any);
+
+      const response = await embedService.streamEmbedChat(
+        "mock-bot",
+        "chat-usage-await",
+        "hello"
+      );
+      let ended = false;
+      const endPromise = new Promise<void>(resolve => {
+        response.data.on("data", () => {});
+        response.data.on("end", () => {
+          ended = true;
+          resolve();
+        });
+      });
+      upstream.end(
+        'data: {"type":"chunk","content":"Hi","format":"markdown"}\n\n' +
+          'data: {"type":"done","elapsed_ms":1,"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}}\n\n'
+      );
+      await new Promise(resolve => setImmediate(resolve));
+      await new Promise(resolve => setImmediate(resolve));
+      expect(mockUsageLog.insert).toHaveBeenCalledTimes(1);
+      // Write still unresolved: terminal finalization must not complete.
+      expect(ended).toBe(false);
+
+      resolveInsert!(1);
+      await endPromise;
+      expect(ended).toBe(true);
+    });
+
     it("uses CRIA_BOT_CHAT_TIMEOUT_MS for stream posts (not BaseService 30s default)", async () => {
       mockManageService.retrieveBot.mockResolvedValueOnce({
         botName: "mock-bot",

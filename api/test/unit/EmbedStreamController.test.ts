@@ -48,6 +48,7 @@ import {
 } from "../../src/controllers/embed/EmbedChatController";
 import { CriaError } from "../../src/models/CriaResponse";
 import { PassThrough } from "node:stream";
+import { EventEmitter } from "node:events";
 
 describe("EmbedChatController", () => {
   let service: {
@@ -166,7 +167,9 @@ describe("EmbedStreamController", () => {
     expect(service.streamEmbedChat).toHaveBeenCalledWith(
       "bot-id",
       "chat-1",
-      "hello"
+      "hello",
+      undefined,
+      expect.any(Object)
     );
     expect(setStatusSpy).toHaveBeenCalledWith(200);
     expect(setHeaderSpy).toHaveBeenCalledWith(
@@ -201,6 +204,31 @@ describe("EmbedStreamController", () => {
     upstream.end();
   });
 
+  it("fires a cancel that registers after the client already closed", async () => {
+    const cancel = jest.fn();
+    service.streamEmbedChat.mockImplementation(
+      async (_bot: any, _chat: any, _prompt: any, _v: any, hooks: any) => {
+        await new Promise(resolve => setTimeout(resolve, 10));
+        hooks.registerCancel(cancel);
+        return { status: 200, data: new PassThrough() };
+      }
+    );
+    const resEmitter = new EventEmitter();
+    const request: any = { ip: "127.0.0.1", res: resEmitter };
+
+    const pending = (controller.stream as any)(
+      "bot-id",
+      { chatId: "chat-1", prompt: "hello" },
+      request
+    );
+    // Client closes BEFORE the service registers its cancel callback.
+    resEmitter.emit("close");
+    const result: any = await pending;
+
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(result).toBeInstanceOf(PassThrough);
+  });
+
   it("rejects prompts above the send endpoint's 4000-character limit", async () => {
     await expect(
       controller.stream("bot-id", {
@@ -226,7 +254,30 @@ describe("EmbedStreamController", () => {
     expect(service.streamEmbedChat).toHaveBeenCalledWith(
       "bot-id",
       "chat-1",
-      prompt
+      prompt,
+      undefined,
+      expect.any(Object)
+    );
+    upstream.destroy();
+  });
+
+  it("forwards stream_version to EmbedService", async () => {
+    const upstream = new PassThrough();
+    service.streamEmbedChat.mockResolvedValueOnce({
+      status: 200,
+      data: upstream
+    });
+    await controller.stream("bot-id", {
+      chatId: "chat-1",
+      prompt: "hello",
+      stream_version: 2
+    });
+    expect(service.streamEmbedChat).toHaveBeenCalledWith(
+      "bot-id",
+      "chat-1",
+      "hello",
+      2,
+      expect.any(Object)
     );
     upstream.destroy();
   });

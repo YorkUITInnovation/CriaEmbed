@@ -234,9 +234,31 @@ Body (JSON): same as `POST /embed/{botId}/send`
 ```json
 {
   "chatId": "string",
-  "prompt": "string"
+  "prompt": "string",
+  "stream_version": 2
 }
 ```
+
+Optional `stream_version`: omit or any value other than `2` keeps the legacy
+path (status events, then HTML answer chunks after full synthesis). `2` opts
+into token-stream markdown deltas (`chunk.format = "markdown"`) with a single
+terminal `done` after history persistence (`done.reply_html` is authoritative
+HTML). Clients must not treat EOF with partial text as success without `done`.
+The embed app defaults to `stream_version: 2`.
+Criabot additionally requires `CRIA_STREAM_V2_ENABLED=true` (default false);
+`CRIA_STREAM_V2_BOTS` optionally restricts v2 to comma-separated bot names.
+When the gate rejects v2, the same request uses legacy HTML chunking without
+making a second generation request.
+
+Upstream streaming generation has active absolute deadlines, separate from
+HTTP idle-read timeouts: `CRIADEX_LLM_STREAM_TOTAL_TIMEOUT_SECONDS` in Criadex
+and `CRIADEX_STREAM_TOTAL_TIMEOUT_SECONDS` in Criabot's Criadex client (both
+default to 300 seconds). Blocked setup, reads, and recovery are interrupted;
+heartbeats/deltas do not reset the deadline. Criadex includes admission waiting
+and releases any acquired slot on cancellation. These budgets do not include
+Criabot retrieval or history persistence and do not replace CriaEmbed's own
+request timeout. They do not prove that closing a provider connection stops
+remote generation or billing.
 
 Produces: `text/event-stream` on success. If the upstream request fails before streaming starts, returns a normal `CriaResponse` JSON error instead (e.g. `404 NOT_FOUND` if the bot doesn't have embeds enabled).
 
@@ -250,8 +272,9 @@ Produces: `text/event-stream` on success. If the upstream request fails before s
   agent permits 64 connections per origin, 256 total, and 16 idle connections
   per origin. Caller transport overrides and the
   `CRIA_BOT_CHAT_TIMEOUT_MS` budget remain supported.
-- The streaming endpoint forwards upstream chunks without accumulating the
-  answer. It sends `X-Accel-Buffering: no` and
+- The streaming endpoint forwards upstream chunks without waiting for the full
+  answer; a pass-through tap also collects message text and terminal usage for
+  logging. It sends `X-Accel-Buffering: no` and
   `Cache-Control: no-cache, no-transform`. The deployed proxy/CDN must honor
   these headers; application tests cannot verify external proxy configuration.
 - Both endpoints limit prompts to 4000 characters. The streaming endpoint
@@ -261,8 +284,15 @@ Produces: `text/event-stream` on success. If the upstream request fails before s
   once, after 300 ms. It does not replay requests after timeouts, socket resets,
   or HTTP server errors. Missing Criabot chats retain the create/map/retry-once
   recovery flow; unused upstream error streams are destroyed.
-- Usage writes remain awaited rather than being moved to a lossy in-memory
-  background task.
+- On `done`, the stream tap starts one usage-log write attempt. EOF and tap
+  destruction await its settlement; earlier answer deltas are not delayed.
+  `done` itself can reach the browser before the insert settles. Writes retain
+  the blocking path's best-effort failure policy, not durable exactly-once
+  accounting. Streams without `done` do not create a completed-turn usage row.
+- Client-close handling is installed before upstream dispatch, including while
+  response headers are pending. It aborts Axios and destroys established streams;
+  a late upstream response is also destroyed. A close during preparation prevents
+  subsequent generation dispatch, but does not cancel the database/cache lookups.
 - Criabot runs at most two retrieval prompt variants concurrently, preserving
   original merge order, search accounting, sources, and reranking behavior.
   Each variant retains the existing group-search behavior. Failure or
@@ -278,11 +308,15 @@ Produces: `text/event-stream` on success. If the upstream request fails before s
   the client; standalone agents retain their own short-lived client.
 
 This reduces avoidable request overhead without changing model selection,
-generation settings, or retrieval quality. The current upstream SSE path emits
-retrieval/synthesis status events, then chunks the completed model answer; it
-does not yet provide end-to-end token streaming from Ragflow. Measure both time
-to first **answer** chunk and total turn duration in deployment rather than
-treating the first status event as an answer-speed measurement.
+generation settings, or retrieval quality. With `stream_version: 2`, Criabot
+forwards Ragflow/Criadex answer deltas as they arrive for document synthesis
+and no-context generative turns; direct/indexing/saved replies need no model
+stream. Status events remain non-answer. Legacy mode still post-chunks HTML
+after synthesis. Measure time to first **answer** chunk
+(`cria_sse_first_answer_seconds`) separately from first status
+(`cria_sse_ttft_seconds`). Local provider captures and exploratory measurements
+exist; production UX claims still require real ingress and representative
+p50/p95 baselines (see Resource validation doc).
 
 #### Regression test cases
 

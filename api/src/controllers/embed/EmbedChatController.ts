@@ -15,6 +15,8 @@ import e from "express";
 type ChatPayload = {
   chatId: string;
   prompt: string;
+  /** Opt into token-stream markdown deltas (v2). Absent keeps legacy HTML chunking. */
+  stream_version?: number;
 };
 
 const MAX_PROMPT_LENGTH = 4000;
@@ -117,7 +119,8 @@ export class EmbedStreamController extends BaseController {
   @Middlewares(...RATE_LIMIT_CHAT_ALL_HANDLERS)
   public async stream(
     @Path() botId: string,
-    @Body() config: ChatPayload
+    @Body() config: ChatPayload,
+    @Request() request: e.Request
   ): Promise<Readable | CriaResponse> {
     if (!botId || botId.trim().length === 0) {
       throw new CriaError("Invalid botId provided.");
@@ -139,10 +142,37 @@ export class EmbedStreamController extends BaseController {
     }
 
     try {
+      // Track client close from the start: a disconnect that happens
+      // before the service registers its cancel callback must still fire
+      // that callback the moment it registers.
+      const res: any = (request as any)?.res;
+      let clientClosed = false;
+      let upstreamCancel: (() => void) | null = null;
+      const onClientClose = () => {
+        clientClosed = true;
+        upstreamCancel?.();
+      };
+      if (res?.once) {
+        res.once("close", onClientClose);
+      } else if ((request as any)?.once) {
+        (request as any).once("close", onClientClose);
+      }
+
       const response = await this.service.streamEmbedChat(
         botId,
         config.chatId,
-        prompt
+        prompt,
+        config.stream_version,
+        {
+          clientIp: request?.ip ?? null,
+          // Browser disconnect -> cancel upstream work in Criabot/Criadex.
+          registerCancel: cancel => {
+            upstreamCancel = cancel;
+            if (clientClosed) {
+              cancel();
+            }
+          }
+        }
       );
 
       if (response.status !== 200) {

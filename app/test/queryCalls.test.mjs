@@ -51,7 +51,12 @@ function setup(sendStream) {
 
 test("empty streams report an error without dispatching a second chat POST", async () => {
   const { QueryBox, events } = setup(async (_content, callbacks) => {
-    const result = { message: "", errors: [] };
+    const result = {
+      message: "",
+      errors: [],
+      outcome: "interrupted",
+      received_done: false,
+    };
     callbacks.onComplete(result);
     return result;
   });
@@ -60,7 +65,30 @@ test("empty streams report an error without dispatching a second chat POST", asy
     assert.fail("Must not replay a non-idempotent POST");
   await box.sendChatStreaming("hello");
   assert.equal(events.at(-1).type, "chatStreamError");
-  assert.match(events.at(-1).detail.message, /without an answer/);
+  assert.match(events.at(-1).detail.message, /terminal done|without an answer/);
+});
+
+test("partial answer without done is not treated as success", async () => {
+  const { QueryBox, events } = setup(async (_content, callbacks) => {
+    const result = {
+      message: "partial answer",
+      errors: ["The response ended without a terminal done event."],
+      outcome: "interrupted",
+      received_done: false,
+      partial_emitted: true,
+    };
+    callbacks.onComplete(result);
+    return result;
+  });
+  const box = new QueryBox();
+  box.sendChatRegular = () =>
+    assert.fail("Must not replay a non-idempotent POST");
+  await box.sendChatStreaming("hello");
+  assert.equal(events.at(-1).type, "chatStreamError");
+  assert.equal(
+    events.find((e) => e.type === "chatReply")?.detail.code,
+    "ERROR"
+  );
 });
 
 test("unexpected stream failure reports an error without a blocking fallback", async () => {
@@ -82,6 +110,9 @@ test("successful streams preserve the reply and completion events", async () => 
       errors: [],
       citations: [],
       elapsed_ms: 12,
+      outcome: "success",
+      received_done: true,
+      reply_html: "<p>Hello</p>",
     };
     callbacks.onComplete(result);
     return result;
@@ -91,5 +122,5 @@ test("successful streams preserve the reply and completion events", async () => 
     events.map((event) => event.type),
     ["chatReply", "chatStreamComplete"]
   );
-  assert.equal(events[0].detail.reply, "Hello");
+  assert.equal(events[0].detail.reply, "<p>Hello</p>");
 });

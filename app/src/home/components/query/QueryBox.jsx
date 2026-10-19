@@ -223,8 +223,18 @@ export default class QueryBox extends Component {
           );
         },
         onComplete: (result) => {
-          if (result.errors.length > 0) {
-            const errorMsg = result.errors.join("; ");
+          // Success requires a terminal `done` (outcome === success).
+          // EOF with partial text without done is interrupted, not success.
+          if (result.outcome === "aborted") {
+            return;
+          }
+
+          if (result.outcome !== "success" || !result.received_done) {
+            const errorMsg =
+              result.errors.join("; ") ||
+              (result.outcome === "interrupted"
+                ? "The response ended without a terminal done event."
+                : "The response ended without an answer. Please try again.");
             document.dispatchEvent(
               new CustomEvent("chatReply", {
                 detail: {
@@ -234,18 +244,24 @@ export default class QueryBox extends Component {
                   relatedPrompts: null,
                   verifiedResponse: null,
                   message: errorMsg,
+                  outcome: result.outcome,
+                  partialEmitted: result.partial_emitted,
                 },
               })
             );
             document.dispatchEvent(
               new CustomEvent("chatStreamError", {
-                detail: { message: errorMsg },
+                detail: {
+                  message: errorMsg,
+                  outcome: result.outcome,
+                  partialEmitted: result.partial_emitted,
+                },
               })
             );
             return;
           }
 
-          if (!result.message?.trim()) {
+          if (!result.message?.trim() && !result.reply_html?.trim()) {
             const message =
               "The response ended without an answer. Please try again.";
             document.dispatchEvent(
@@ -258,12 +274,14 @@ export default class QueryBox extends Component {
             new CustomEvent("chatReply", {
               detail: {
                 code: "SUCCESS",
-                reply: result.message || null,
+                // Prefer authoritative final HTML from done when present.
+                reply: result.reply_html || result.message || null,
                 replyId: null,
                 relatedPrompts: null,
                 verifiedResponse: null,
                 elapsedMs: result.elapsed_ms,
                 citations: result.citations,
+                format: result.reply_html ? "html" : result.format || "text",
               },
             })
           );

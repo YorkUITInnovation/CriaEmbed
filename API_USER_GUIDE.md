@@ -244,10 +244,34 @@ Example:
 ```
 curl -N -X POST "https://api.example.com/embed/myBot/stream" \
   -H "Content-Type: application/json" \
-  -d '{"chatId":"newId123","prompt":"Hi"}'
+  -d '{"chatId":"newId123","prompt":"Hi","stream_version":2}'
 ```
 
 If the request fails before streaming starts (e.g. the bot has no embeds enabled), you get a normal JSON error response instead of a stream.
+
+The embed app requests v2 by default. Enable it server-side in Criabot with
+`CRIA_STREAM_V2_ENABLED=true`; use `CRIA_STREAM_V2_BOTS=pilot-bot` to restrict
+the pilot. The default-off gate, an excluded bot, or an omitted version keeps
+legacy post-synthesis HTML chunks. No automatic second generation is made.
+
+For v2, display `chunk.content` as escaped live Markdown text. On `done`,
+replace the provisional answer with `done.reply_html` using the existing
+sanitized HTML rendering path. Preserve citations and web-search metadata.
+Status events are progress, not answer tokens. EOF without `done` is an
+interruption; never replay the prompt automatically through `/send`.
+The app finalizes at the first terminal event and cancels its reader instead
+of waiting for EOF; duplicate terminal events in the same parsed batch fail.
+
+Closing the request cancels upstream work, including during pending headers.
+Completed streams create usage rows from terminal usage; missing provider usage
+remains unknown, not zero. Stream finalization waits for the insert attempt,
+but client-visible `done` is not proof of database commit or exactly-once billing.
+See [stream transport guarantees](./API_SPECIFICATION.md) for timeout scope.
+
+Release checks still include the real public proxy, representative indexed
+corpus/load measurements, and physical iOS/Android keyboard/host-page checks.
+Rebuild the API and app before rebuilding images that copy prebuilt output;
+this guide does not establish which revision is currently deployed.
 
 ### 4.7 Fetch Speech Audio
 

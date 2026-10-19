@@ -8,7 +8,8 @@ import {
 } from "../database/mysql/controllers/BotEmbed.js";
 import { EmbedNotFoundError, ManageService } from "./ManageService.js";
 import { AxiosResponse } from "axios";
-import { Readable } from "node:stream";
+import { Readable, Transform } from "node:stream";
+import { StringDecoder } from "node:string_decoder";
 import { Config, debugEnabled } from "../config.js";
 import {
   CriaError,
@@ -976,11 +977,147 @@ export class EmbedService extends BaseService {
     return responseData;
   }
 
+  /**
+   * Pass-through tap on the Criabot SSE stream.
+   *
+   * - Forwards every chunk immediately (no buffering before completion).
+   * - Captures the terminal `done` usage and writes the same usage-log
+   *   record the blocking send path writes (token counts + cost). The write
+   *   starts when `done` is seen, and terminal finalization (flush, or
+   *   destroy on disconnect) awaits its settlement before completing —
+   *   the same await-the-write-attempt durability as the blocking path,
+   *   without delaying any answer delta.
+   * - Destroying the tap (client disconnect) destroys the upstream stream.
+   */
+  private tapCriabotStream(
+    upstream: Readable,
+    meta: {
+      botId: number | null;
+      botName: string;
+      criabotChatId: string;
+      prompt: string;
+      clientIp: string | null;
+      onEnd?: () => void;
+    }
+  ): Transform {
+    const decoder = new StringDecoder("utf8");
+    let buffer = "";
+    let message = "";
+    let usageLogPromise: Promise<void> | null = null;
+
+    const logDoneUsage = (doneEvent: any) => {
+      if (usageLogPromise) {
+        return;
+      }
+      const usage = doneEvent?.usage ?? {};
+      const promptTokens: number | null = usage.prompt_tokens ?? null;
+      const completionTokens: number | null = usage.completion_tokens ?? null;
+      const totalTokens: number | null = usage.total_tokens ?? null;
+      usageLogPromise = this.logUsage({
+        botId: meta.botId,
+        prompt: meta.prompt,
+        message: message || null,
+        groupResponses: null,
+        promptTokens,
+        completionTokens,
+        totalTokens,
+        cost: calculateCost(promptTokens, completionTokens),
+        ip: meta.clientIp,
+        requestPayload: {
+          botName: meta.botName,
+          chatId: meta.criabotChatId,
+          prompt: meta.prompt,
+          stream: true
+        },
+        responsePayload: {
+          usage,
+          elapsed_ms: doneEvent?.elapsed_ms ?? null,
+          web_search: doneEvent?.web_search ?? null
+        }
+      });
+    };
+
+    const consumeEvents = (text: string) => {
+      buffer += text;
+      let sep = buffer.indexOf("\n\n");
+      while (sep !== -1) {
+        const rawEvent = buffer.slice(0, sep);
+        buffer = buffer.slice(sep + 2);
+        const dataLines = rawEvent
+          .split("\n")
+          .filter(line => line.startsWith("data:"))
+          .map(line => line.slice(5).replace(/^ /, ""));
+        if (dataLines.length) {
+          try {
+            const event = JSON.parse(dataLines.join("\n"));
+            if (event?.type === "chunk" && typeof event.content === "string") {
+              message += event.content;
+            } else if (event?.type === "done") {
+              logDoneUsage(event);
+            }
+          } catch (_error) {
+            // Tapping is best-effort; never disturb the forwarded stream.
+          }
+        }
+        sep = buffer.indexOf("\n\n");
+      }
+    };
+
+    const settleUsageLog = async () => {
+      if (usageLogPromise) {
+        try {
+          await usageLogPromise;
+        } catch (_error) {
+          // logUsage already swallows write failures; never break the stream.
+        }
+      }
+    };
+
+    const tap = new Transform({
+      transform(chunk, _encoding, callback) {
+        try {
+          consumeEvents(decoder.write(chunk));
+        } catch (_error) {
+          // best-effort tap
+        }
+        callback(null, chunk);
+      },
+      flush(callback) {
+        void (async () => {
+          try {
+            consumeEvents(decoder.end());
+          } catch (_error) {
+            // best-effort tap
+          }
+          // Terminal finalization awaits the usage write attempt (it does
+          // not delay any already-forwarded delta).
+          await settleUsageLog();
+          meta.onEnd?.();
+          callback();
+        })();
+      },
+      destroy(error, callback) {
+        upstream.destroy();
+        void (async () => {
+          // Disconnect after `done`: still wait for the write attempt to
+          // settle before releasing the tap.
+          await settleUsageLog();
+          meta.onEnd?.();
+          callback(error);
+        })();
+      }
+    });
+    upstream.on("error", err => tap.destroy(err));
+    return tap;
+  }
+
   private async postCriabotChatStream(
     criabotChatId: string,
     canonicalBotName: string,
     prompt: string,
-    systemEphemeralPayload?: string
+    systemEphemeralPayload?: string,
+    streamVersion?: number,
+    signal?: AbortSignal
   ): Promise<AxiosResponse> {
     const chatUrl = `${
       Config.CRIA_BOT_SERVER_URL
@@ -994,6 +1131,9 @@ export class EmbedService extends BaseService {
     if (systemEphemeralPayload) {
       body.system_ephemeral_payload = systemEphemeralPayload;
     }
+    if (streamVersion != null) {
+      body.stream_version = streamVersion;
+    }
 
     // Match send-path budget; BaseService defaults to 30s which aborts long RAG streams.
     return this.post(chatUrl, body, {
@@ -1003,6 +1143,7 @@ export class EmbedService extends BaseService {
       },
       responseType: "stream",
       timeout: Config.CRIA_BOT_CHAT_TIMEOUT_MS,
+      signal,
       validateStatus: status => status < 500
     });
   }
@@ -1010,11 +1151,38 @@ export class EmbedService extends BaseService {
   async streamEmbedChat(
     botName: string,
     chatId: string,
-    prompt: string
+    prompt: string,
+    streamVersion?: number,
+    hooks?: {
+      clientIp?: string | null;
+      registerCancel?: (cancel: () => void) => void;
+    }
   ): Promise<AxiosResponse> {
+    // Register cancellation FIRST — before preparation and before the
+    // upstream request is dispatched — so a disconnect at any point
+    // (prep, pending headers, streaming) aborts in-flight work. If the
+    // client already closed, the abort signal is set before any dispatch.
+    const abortController = new AbortController();
+    let upstreamRef: Readable | null = null;
+    let tappedRef: Transform | null = null;
+    let streamEnded = false;
+    const cancelUpstream = () => {
+      if (streamEnded) {
+        return;
+      }
+      abortController.abort();
+      upstreamRef?.destroy();
+      tappedRef?.destroy();
+    };
+    hooks?.registerCancel?.(cancelUpstream);
+
     const { botConfig, criabotPrompt, personalization, mappedChatId } =
       await this.prepareCriabotChat(botName, chatId, prompt);
     const canonicalBotName = botConfig.botName;
+
+    if (abortController.signal.aborted) {
+      throw new CriaError("Client disconnected before the stream started.");
+    }
 
     try {
       let criabotChatId = mappedChatId;
@@ -1024,7 +1192,9 @@ export class EmbedService extends BaseService {
           criabotChatId,
           canonicalBotName,
           criabotPrompt,
-          personalization
+          personalization,
+          streamVersion,
+          abortController.signal
         )
       );
 
@@ -1042,8 +1212,33 @@ export class EmbedService extends BaseService {
           criabotChatId,
           canonicalBotName,
           criabotPrompt,
-          personalization
+          personalization,
+          streamVersion,
+          abortController.signal
         );
+      }
+
+      // Wrap the upstream body: usage-log tap + disconnect propagation.
+      if (response?.status === 200 && response.data instanceof Readable) {
+        const upstream = response.data as Readable;
+        upstreamRef = upstream;
+        const tapped = this.tapCriabotStream(upstream, {
+          botId: botConfig.id ?? null,
+          botName: canonicalBotName,
+          criabotChatId,
+          prompt: criabotPrompt,
+          clientIp: hooks?.clientIp ?? null,
+          onEnd: () => {
+            streamEnded = true;
+          }
+        });
+        tappedRef = tapped;
+        upstream.pipe(tapped);
+        response.data = tapped;
+        // Client may have disconnected while headers were in flight.
+        if (abortController.signal.aborted) {
+          cancelUpstream();
+        }
       }
 
       return response;
