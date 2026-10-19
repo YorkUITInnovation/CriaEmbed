@@ -10,7 +10,7 @@
     "lint:fix": "pretty-quick",
     "preview": "vite preview",
     "start": "serve -s dist -l 4000",
-    "test": "node --test \"test/**/*.test.mjs\""
+    "test": "node --test test/*.mjs"
   },
   "dependencies": {
     "@lexical/react": "^0.13.1",

@@ -2,6 +2,7 @@ import { EmbedService } from "../../src/services/EmbedService";
 import { Config } from "../../src/config";
 import { VectorStoreService } from "../../src/services/VectorStoreService"; // Import for typing the mock
 import { buildEmbedCriabotPrompt } from "../../src/services/embedPrompt";
+import { PassThrough } from "node:stream";
 
 // Mock BotEmbed dependency
 jest.mock("../../src/database/mysql/controllers/BotEmbed", () => ({
@@ -59,6 +60,7 @@ describe("EmbedService", () => {
 
   beforeEach(() => {
     jest.clearAllMocks(); // Clears all mocks, including VectorStoreService constructor and its methods
+    mockedAxios.post.mockReset();
 
     mockManageService = {
       retrieveBot: jest.fn().mockResolvedValue({
@@ -112,6 +114,248 @@ describe("EmbedService", () => {
   it("should be defined", () => {
     expect(embedService).toBeDefined();
   });
+
+  describe.each(["send", "stream"] as const)(
+    "%s request preparation and retry safety",
+    mode => {
+      const upstreamReply = {
+        status: 200,
+        data: {
+          status: 200,
+          code: "SUCCESS",
+          reply: { content: { content: "hello" } }
+        }
+      };
+      const send = (service: EmbedService) =>
+        mode === "stream"
+          ? service.streamEmbedChat("bot-alias", "embed-chat", "hello")
+          : service.sendEmbedChat("bot-alias", "embed-chat", "hello");
+
+      it("uses one tracking snapshot for mapping, context, and personalization", async () => {
+        const tracking = {
+          criabotChatId: "mapped/chat",
+          courseName: "Art",
+          resolvedPersonalizationBlock: "  I am a student.  "
+        };
+        mockTrackingCache.get
+          .mockResolvedValueOnce(tracking)
+          .mockRejectedValue(new Error("Unexpected redundant tracking read"));
+        mockedAxios.post.mockResolvedValueOnce(upstreamReply);
+
+        await send(embedService);
+
+        expect(mockTrackingCache.get).toHaveBeenCalledTimes(1);
+        expect(mockTrackingCache.get).toHaveBeenCalledWith("embed-chat");
+        expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+        expect(mockedAxios.post).toHaveBeenCalledWith(
+          `${Config.CRIA_BOT_SERVER_URL}/bots/chats/mapped%2Fchat/${mode}`,
+          expect.objectContaining({
+            bot_name: "mock-bot",
+            prompt: buildEmbedCriabotPrompt("hello", tracking),
+            system_ephemeral_payload: "I am a student."
+          }),
+          expect.objectContaining({
+            timeout: Config.CRIA_BOT_CHAT_TIMEOUT_MS
+          })
+        );
+      });
+
+      it("starts both independent lookups immediately and waits for both before posting", async () => {
+        let resolveBot!: () => void;
+        let resolveTracking!: () => void;
+        const botReady = new Promise<void>(resolve => {
+          resolveBot = resolve;
+        });
+        const trackingReady = new Promise<void>(resolve => {
+          resolveTracking = resolve;
+        });
+        mockManageService.retrieveBot.mockImplementationOnce(async () => {
+          await botReady;
+          return { botName: "resolved-bot" };
+        });
+        mockTrackingCache.get.mockImplementationOnce(async () => {
+          await trackingReady;
+          return { criabotChatId: "mapped-chat" };
+        });
+        mockedAxios.post.mockResolvedValueOnce(upstreamReply);
+        const pending = send(embedService);
+        expect(mockManageService.retrieveBot).toHaveBeenCalledTimes(1);
+        expect(mockTrackingCache.get).toHaveBeenCalledTimes(1);
+        expect(mockedAxios.post).not.toHaveBeenCalled();
+        resolveBot();
+        await botReady;
+        expect(mockedAxios.post).not.toHaveBeenCalled();
+        resolveTracking();
+        await pending;
+        expect(mockedAxios.post).toHaveBeenCalledWith(
+          `${Config.CRIA_BOT_SERVER_URL}/bots/chats/mapped-chat/${mode}`,
+          expect.objectContaining({ bot_name: "resolved-bot" }),
+          expect.any(Object)
+        );
+      });
+
+      it.each([
+        null,
+        {},
+        { criabotChatId: "", resolvedPersonalizationBlock: "  " },
+        { criabotChatId: 123, resolvedPersonalizationBlock: 123 }
+      ])(
+        "preserves unmapped-chat and absent-personalization behavior for %p",
+        async tracking => {
+          mockTrackingCache.get.mockResolvedValueOnce(tracking);
+          mockedAxios.post.mockResolvedValueOnce(upstreamReply);
+          await send(embedService);
+          expect(mockedAxios.post).toHaveBeenCalledWith(
+            `${Config.CRIA_BOT_SERVER_URL}/bots/chats/embed-chat/${mode}`,
+            mode === "stream"
+              ? { bot_name: "mock-bot", prompt: "q: hello", extra_bots: [] }
+              : { bot_name: "mock-bot", prompt: "q: hello" },
+            expect.any(Object)
+          );
+        }
+      );
+
+      it("does not call Criabot when tracking lookup fails", async () => {
+        const error = new Error("Redis unavailable");
+        mockTrackingCache.get.mockRejectedValueOnce(error);
+        await expect(send(embedService)).rejects.toBe(error);
+        expect(mockedAxios.post).not.toHaveBeenCalled();
+      });
+
+      it("preserves bot lookup errors without dispatching a chat", async () => {
+        const error = new Error("Bot configuration unavailable");
+        mockManageService.retrieveBot.mockRejectedValueOnce(error);
+        await expect(send(embedService)).rejects.toBe(error);
+        expect(mockedAxios.post).not.toHaveBeenCalled();
+      });
+
+      it("only recovers a missing chat once, preserving current tracking", async () => {
+        const staleResponse = new PassThrough();
+        const tracking = {
+          courseName: "Art",
+          resolvedPersonalizationBlock: "I am a student."
+        };
+        mockTrackingCache.get.mockResolvedValue(tracking);
+        mockedAxios.post
+          .mockResolvedValueOnce({
+            status: 404,
+            data: mode === "stream" ? staleResponse : { code: "NOT_FOUND" }
+          })
+          .mockResolvedValueOnce({
+            status: 200,
+            data: { chat_id: "replacement-chat" }
+          })
+          .mockResolvedValueOnce({
+            status: 404,
+            data: { status: 404, code: "NOT_FOUND", message: "Still missing" }
+          });
+
+        const result = await send(embedService);
+
+        expect(result.status).toBe(404);
+        expect(mockedAxios.post).toHaveBeenCalledTimes(3);
+        expect(mockTrackingCache.set).toHaveBeenCalledWith("embed-chat", {
+          ...tracking,
+          criabotChatId: "replacement-chat"
+        });
+        expect(mockedAxios.post).toHaveBeenLastCalledWith(
+          `${Config.CRIA_BOT_SERVER_URL}/bots/chats/replacement-chat/${mode}`,
+          expect.objectContaining({
+            prompt: buildEmbedCriabotPrompt("hello", tracking),
+            system_ephemeral_payload: "I am a student."
+          }),
+          expect.any(Object)
+        );
+        expect(staleResponse.destroyed).toBe(mode === "stream");
+        staleResponse.destroy();
+      });
+
+      it("does not cache bot configuration or tracking across messages", async () => {
+        mockedAxios.post.mockResolvedValue(upstreamReply);
+        await send(embedService);
+        mockManageService.retrieveBot.mockResolvedValueOnce({
+          botName: "updated-bot"
+        });
+        mockTrackingCache.get.mockResolvedValueOnce({
+          resolvedPersonalizationBlock: "Updated personalization"
+        });
+        await send(embedService);
+        expect(mockManageService.retrieveBot).toHaveBeenCalledTimes(2);
+        expect(mockTrackingCache.get).toHaveBeenCalledTimes(2);
+        expect(mockedAxios.post).toHaveBeenLastCalledWith(
+          `${Config.CRIA_BOT_SERVER_URL}/bots/chats/embed-chat/${mode}`,
+          expect.objectContaining({
+            bot_name: "updated-bot",
+            system_ephemeral_payload: "Updated personalization"
+          }),
+          expect.any(Object)
+        );
+      });
+
+      it.each(["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN"])(
+        "retries connection-establishment failure %s only once",
+        async code => {
+          jest.useFakeTimers();
+          try {
+            mockedAxios.post
+              .mockRejectedValueOnce(Object.assign(new Error(code), { code }))
+              .mockResolvedValueOnce(upstreamReply);
+            const pending = send(embedService);
+            await jest.runAllTimersAsync();
+            await pending;
+            expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+            const [url, body, config] = mockedAxios.post.mock.calls[0];
+            expect(mockedAxios.post).toHaveBeenLastCalledWith(
+              url,
+              body,
+              expect.objectContaining({
+                headers: config?.headers,
+                timeout: config?.timeout,
+                httpAgent: config?.httpAgent,
+                httpsAgent: config?.httpsAgent
+              })
+            );
+          } finally {
+            jest.useRealTimers();
+          }
+        }
+      );
+
+      it.each([
+        { code: "ECONNRESET" },
+        { code: "ECONNABORTED" },
+        { code: "ETIMEDOUT" },
+        { code: "ERR_CANCELED" },
+        { response: { status: 503 }, code: "ECONNREFUSED" }
+      ])(
+        "does not replay a chat after an ambiguous failure %p",
+        async details => {
+          mockedAxios.post.mockRejectedValueOnce(
+            Object.assign(new Error("Transport failed"), details)
+          );
+          await expect(send(embedService)).rejects.toThrow();
+          expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+        }
+      );
+
+      it("stops after the second connection-establishment failure", async () => {
+        jest.useFakeTimers();
+        try {
+          mockedAxios.post.mockRejectedValue(
+            Object.assign(new Error("Connection refused"), {
+              code: "ECONNREFUSED"
+            })
+          );
+          const rejected = expect(send(embedService)).rejects.toThrow();
+          await jest.runAllTimersAsync();
+          await rejected;
+          expect(mockedAxios.post).toHaveBeenCalledTimes(2);
+        } finally {
+          jest.useRealTimers();
+        }
+      });
+    }
+  );
 
   describe("createChat", () => {
     it("should return a valid UUID", async () => {
@@ -282,18 +526,11 @@ describe("EmbedService", () => {
         botTrustWarning: null,
         botContact: null
       });
-      mockTrackingCache.get
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({
-          courseId: 13,
-          courseName: "Art of Art",
-          name: "I am a student and my name is Alex"
-        })
-        .mockResolvedValueOnce({
-          courseId: 13,
-          courseName: "Art of Art",
-          name: "I am a student and my name is Alex"
-        });
+      mockTrackingCache.get.mockResolvedValueOnce({
+        courseId: 13,
+        courseName: "Art of Art",
+        name: "I am a student and my name is Alex"
+      });
 
       const enrichedPrompt = buildEmbedCriabotPrompt("hello", {
         courseId: 13,
@@ -746,18 +983,11 @@ describe("EmbedService", () => {
         botTrustWarning: null,
         botContact: null
       });
-      mockTrackingCache.get
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({
-          courseId: 13,
-          courseName: "Art of Art",
-          name: "I am a student and my name is Alex"
-        })
-        .mockResolvedValueOnce({
-          courseId: 13,
-          courseName: "Art of Art",
-          name: "I am a student and my name is Alex"
-        });
+      mockTrackingCache.get.mockResolvedValueOnce({
+        courseId: 13,
+        courseName: "Art of Art",
+        name: "I am a student and my name is Alex"
+      });
 
       const enrichedPrompt = buildEmbedCriabotPrompt("hello", {
         courseId: 13,
@@ -847,14 +1077,13 @@ describe("EmbedService", () => {
       });
       mockTrackingCache.get
         .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(null)
         .mockResolvedValueOnce({ some: "data" });
 
+      const missingChatStream = new PassThrough();
       mockedAxios.post
         .mockResolvedValueOnce({
           status: 404,
-          data: { message: "not found" }
+          data: missingChatStream
         } as any)
         .mockResolvedValueOnce({
           status: 200,
@@ -900,6 +1129,7 @@ describe("EmbedService", () => {
         expect.objectContaining({ responseType: "stream" })
       );
       expect(response.status).toBe(200);
+      expect(missingChatStream.destroyed).toBe(true);
     });
 
     it("should throw CriaError when stream transport fails", async () => {
@@ -931,6 +1161,22 @@ describe("EmbedService", () => {
           message: "[Cria] Criabot returned HTTP 503"
         })
       });
+    });
+
+    it("releases a rejected HTTP error stream without retrying the chat", async () => {
+      const upstream = new PassThrough();
+      mockedAxios.post.mockRejectedValueOnce({
+        response: { status: 503, data: upstream }
+      });
+      await expect(
+        embedService.streamEmbedChat("mock-bot", "chat-error", "hello")
+      ).rejects.toMatchObject({
+        payload: expect.objectContaining({
+          message: "[Cria] Criabot returned HTTP 503"
+        })
+      });
+      expect(upstream.destroyed).toBe(true);
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -981,12 +1227,9 @@ describe("EmbedService", () => {
         botTrustWarning: null,
         botContact: null
       });
-      mockTrackingCache.get
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({
-          resolvedPersonalizationBlock: "I am a 3rd year student."
-        });
+      mockTrackingCache.get.mockResolvedValueOnce({
+        resolvedPersonalizationBlock: "I am a 3rd year student."
+      });
 
       mockedAxios.post.mockResolvedValueOnce({
         status: 200,

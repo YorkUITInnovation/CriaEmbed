@@ -48,13 +48,23 @@
     const criaEmbed = document.querySelector(`.cria-embed[botId='${botId}']`);
     const criaEmbedURL = new URL(chatConfig.webAppUrl);
 
-    for (const prop of ["botId", "chatId", "webAppUrl", "chatApiUrl", "devKey"]) {
+    for (const prop of [
+      "botId",
+      "chatId",
+      "webAppUrl",
+      "chatApiUrl",
+      "devKey"
+    ]) {
       if (typeof chatConfig[prop] !== "function" && chatConfig[prop] != null) {
         criaEmbedURL.searchParams.set(prop, String(chatConfig[prop]));
       }
     }
 
     criaEmbed.src = criaEmbedURL.toString();
+    updateViewport();
+    window.addEventListener("resize", updateViewport);
+    window.visualViewport?.addEventListener("resize", updateViewport);
+    window.visualViewport?.addEventListener("scroll", updateViewport);
 
     // Inject embed image
     const criaEmbedImage = document.querySelector(
@@ -92,12 +102,27 @@
   window.addEventListener(
     "message",
     event => {
+      const iframe = document.querySelector(`.cria-embed[botId='${botId}']`);
+      if (
+        !iframe ||
+        event.source !== iframe.contentWindow ||
+        event.origin !== new URL(iframe.src).origin
+      ) {
+        return;
+      }
+      let data;
       try {
-        let data = JSON.parse(event.data) || {};
-        if (data.action === "criaSetEmbedEnabled") {
-          setEmbedEnabled(data.value);
-        }
-      } catch (ex) {}
+        data =
+          typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+      } catch {
+        return;
+      }
+      if (
+        data?.action === "criaSetEmbedEnabled" &&
+        typeof data.value === "boolean"
+      ) {
+        setEmbedEnabled(data.value);
+      }
     },
     false
   );
@@ -117,8 +142,33 @@
     const newState = isEnabled ? "true" : "false";
     criaChat.setAttribute("enabled", newState);
     criaLauncher.setAttribute("enabled", newState);
+    criaLauncher.setAttribute("aria-expanded", newState);
     criaWrapper.setAttribute("enabled", newState);
-    htmlBody.setAttribute("cria-enabled", newState);
+    htmlBody.setAttribute(
+      "cria-enabled",
+      String(!!document.querySelector('.cria-wrapper[enabled="true"]'))
+    );
+  }
+
+  function updateViewport() {
+    const wrapper = document.querySelector(`.cria-wrapper[botId='${botId}']`);
+    const viewport = window.visualViewport;
+    wrapper.style.setProperty(
+      "--cria-viewport-height",
+      `${viewport?.height ?? window.innerHeight}px`
+    );
+    wrapper.style.setProperty(
+      "--cria-viewport-width",
+      `${viewport?.width ?? window.innerWidth}px`
+    );
+    wrapper.style.setProperty(
+      "--cria-viewport-top",
+      `${viewport?.offsetTop ?? 0}px`
+    );
+    wrapper.style.setProperty(
+      "--cria-viewport-left",
+      `${viewport?.offsetLeft ?? 0}px`
+    );
   }
 
   function setLauncherVisible(isVisible) {
@@ -158,6 +208,8 @@
     #dragging = false;
     #dragId = undefined;
     #dragInitPos = { x: undefined, y: undefined };
+    #pointerId;
+    #handle;
     #overlaySelector = `.cria-chat-overlay[botId='${botId}']`;
     #minWidth = 300;
     #minHeight = 400;
@@ -179,9 +231,24 @@
     };
 
     constructor() {
-      document.addEventListener("mousedown", this.onMouseDownEvent.bind(this));
-      document.addEventListener("mouseup", this.onMouseUpEvent.bind(this));
-      document.addEventListener("mousemove", this.onMouseMoveEvent.bind(this));
+      document.addEventListener(
+        "pointerdown",
+        this.onMouseDownEvent.bind(this)
+      );
+      document.addEventListener("pointerup", this.onMouseUpEvent.bind(this));
+      document.addEventListener(
+        "pointercancel",
+        this.onMouseUpEvent.bind(this)
+      );
+      document.addEventListener(
+        "lostpointercapture",
+        this.onMouseUpEvent.bind(this)
+      );
+      document.addEventListener(
+        "pointermove",
+        this.onMouseMoveEvent.bind(this)
+      );
+      window.addEventListener("blur", () => this.onMouseUpEvent());
     }
 
     isResizableHandle(target) {
@@ -195,10 +262,18 @@
 
     /** Start dragging */
     onMouseDownEvent(event) {
-      if (!this.isResizableHandle(event.target)) {
+      if (
+        !this.isResizableHandle(event.target) ||
+        event.button !== 0 ||
+        window.matchMedia("(max-width: 600px), (max-height: 480px)").matches
+      ) {
         return;
       }
 
+      event.preventDefault();
+      this.#pointerId = event.pointerId;
+      this.#handle = event.target;
+      this.#handle.setPointerCapture(event.pointerId);
       // Ensure the selected element has a class matching one of the resizable handlers and the current botId
       this.#dragging = true;
       this.#dragId = event.target.className; // Use the class name instead of id
@@ -207,24 +282,32 @@
     }
 
     /** Stop dragging */
-    onMouseUpEvent() {
+    onMouseUpEvent(event) {
+      if (event && event.pointerId !== this.#pointerId) return;
+      const handle = this.#handle;
+      const pointerId = this.#pointerId;
       this.#dragging = false;
+      this.#handle = undefined;
+      this.#pointerId = undefined;
       this.#dragId = undefined;
       this.#dragInitPos = { x: undefined, y: undefined };
       document.querySelector(this.#overlaySelector).style.pointerEvents =
         "none";
+      if (handle?.hasPointerCapture(pointerId)) {
+        handle.releasePointerCapture(pointerId);
+      }
     }
 
     /** On mouse move event */
     onMouseMoveEvent(event) {
       // If not dragging
-      if (!this.#dragging) {
+      if (!this.#dragging || event.pointerId !== this.#pointerId) {
         return;
       }
 
       // If stopped dragging outside of window
-      if (event.which === 0) {
-        this.#dragging = false;
+      if (event.buttons === 0) {
+        this.onMouseUpEvent(event);
         return;
       }
 
@@ -233,11 +316,23 @@
     }
 
     getMaxWidth() {
-      return Math.floor(window.innerWidth * this.#maxWidthProportion);
+      return Math.max(
+        0,
+        Math.min(
+          Math.floor(window.innerWidth * this.#maxWidthProportion),
+          window.innerWidth - 46
+        )
+      );
     }
 
     getMaxHeight() {
-      return Math.floor(window.innerHeight * this.#maxHeightProportion);
+      return Math.max(
+        0,
+        Math.min(
+          Math.floor(window.innerHeight * this.#maxHeightProportion),
+          window.innerHeight - 128
+        )
+      );
     }
 
     /** Horizontally resize */

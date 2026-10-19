@@ -1,5 +1,5 @@
 <div class="cria-wrapper" botId="$botId">
-  <div class="cria-chat" enabled="true" class="noselect" botId="$botId">
+  <div class="cria-chat" enabled="true" botId="$botId">
     <!-- Border wrapper for custom resizing -->
     <div class="cria-chat-n" botId="$botId"></div>
     <div class="cria-chat-w-e" botId="$botId">
@@ -9,6 +9,7 @@
       <div class="cria-chat-w" botId="$botId"></div>
       <iframe
         class="cria-embed"
+        title="Chat assistant"
         allow="clipboard-write; microphone; autoplay"
         botId="$botId"
       ></iframe>
@@ -16,12 +17,15 @@
     </div>
     <div class="cria-chat-s" botId="$botId"></div>
   </div>
-  <div
+  <button
+    type="button"
+    aria-label="Toggle chat assistant"
+    aria-expanded="true"
     class="cria-launcher"
     enabled="true"
     onclick="window.CRIA[$botIdJsKey].switch()"
     botId="$botId"
   >
     <img class="cria-bot-icon" alt="Bot Icon" title="Bot Icon" botId="$botId" />
-  </div>
+  </button>
 </div>

@@ -278,6 +278,31 @@ const BotMessage = styled.span`
   iframe {
     width: 100% !important;
   }
+
+  img:not(.emoji),
+  video,
+  svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  pre {
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  @media (max-width: 360px) {
+    margin-right: 8px;
+    max-width: calc(100% - 24px);
+    box-sizing: border-box;
+  }
 `;
 
 export function pickFontColorFromBg(bgColor = getTheme()) {

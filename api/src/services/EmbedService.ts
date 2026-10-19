@@ -8,6 +8,7 @@ import {
 } from "../database/mysql/controllers/BotEmbed.js";
 import { EmbedNotFoundError, ManageService } from "./ManageService.js";
 import { AxiosResponse } from "axios";
+import { Readable } from "node:stream";
 import { Config, debugEnabled } from "../config.js";
 import {
   CriaError,
@@ -311,31 +312,18 @@ export class EmbedService extends BaseService {
     history: any[],
     clientIp: string | null = null
   ): Promise<CriaGetGPTResponseFunctionResponse> {
-    // Resolve to the canonical bot name stored by embed config.
-    const botConfig: IBotEmbed = await this.manageService.retrieveBot(
-      botName,
-      "",
-      true
-    );
+    const { botConfig, criabotPrompt, personalization, mappedChatId } =
+      await this.prepareCriabotChat(botName, chatId, prompt);
     const canonicalBotName = botConfig.botName;
 
     try {
       // Delegate chat execution to Criabot. It already resolves current model selection,
       // inheritance, fallback behavior, and response formatting.
-      let criabotChatId = await this.getMappedCriabotChatId(chatId);
-      if (!criabotChatId) {
-        criabotChatId = chatId;
-      }
-
-      const trackingData = await this.trackingCache.get(chatId);
-      const criabotPrompt = buildEmbedCriabotPrompt(prompt, trackingData);
-      const personalization = await this.getPersonalizationPayloadForChat(
-        chatId
-      );
+      let criabotChatId = mappedChatId;
 
       let response: AxiosResponse = await this.withConnRetry(() =>
         this.postCriabotChat(
-          criabotChatId!,
+          criabotChatId,
           canonicalBotName,
           criabotPrompt,
           personalization
@@ -521,15 +509,28 @@ export class EmbedService extends BaseService {
     }
   }
 
-  private async getPersonalizationPayloadForChat(
-    chatId: string
-  ): Promise<string | undefined> {
-    const trackingData = await this.trackingCache.get(chatId);
+  private async prepareCriabotChat(
+    botName: string,
+    chatId: string,
+    prompt: string
+  ) {
+    // One snapshot keeps mapping, prompt context and personalization consistent.
+    const [botConfig, trackingData] = await Promise.all([
+      this.manageService.retrieveBot(botName, "", true),
+      this.trackingCache.get(chatId)
+    ]);
+    const mapped = trackingData?.criabotChatId;
     const block = trackingData?.resolvedPersonalizationBlock;
-    if (typeof block === "string" && block.trim().length > 0) {
-      return block.trim();
-    }
-    return undefined;
+    return {
+      botConfig,
+      mappedChatId:
+        typeof mapped === "string" && mapped.length > 0 ? mapped : chatId,
+      criabotPrompt: buildEmbedCriabotPrompt(prompt, trackingData),
+      personalization:
+        typeof block === "string" && block.trim().length > 0
+          ? block.trim()
+          : undefined
+    };
   }
 
   private async postCriabotChat(
@@ -1011,28 +1012,16 @@ export class EmbedService extends BaseService {
     chatId: string,
     prompt: string
   ): Promise<AxiosResponse> {
-    const botConfig: IBotEmbed = await this.manageService.retrieveBot(
-      botName,
-      "",
-      true
-    );
+    const { botConfig, criabotPrompt, personalization, mappedChatId } =
+      await this.prepareCriabotChat(botName, chatId, prompt);
     const canonicalBotName = botConfig.botName;
 
     try {
-      let criabotChatId = await this.getMappedCriabotChatId(chatId);
-      if (!criabotChatId) {
-        criabotChatId = chatId;
-      }
-
-      const trackingData = await this.trackingCache.get(chatId);
-      const criabotPrompt = buildEmbedCriabotPrompt(prompt, trackingData);
-      const personalization = await this.getPersonalizationPayloadForChat(
-        chatId
-      );
+      let criabotChatId = mappedChatId;
 
       let response = await this.withConnRetry(() =>
         this.postCriabotChatStream(
-          criabotChatId!,
+          criabotChatId,
           canonicalBotName,
           criabotPrompt,
           personalization
@@ -1041,6 +1030,10 @@ export class EmbedService extends BaseService {
 
       // If Criabot does not know this chat id yet, create one and retry once.
       if (response?.status === 404) {
+        // Release the unused response before opening another pooled connection.
+        if (response.data instanceof Readable) {
+          response.data.destroy();
+        }
         const startedChatId = await this.startCriabotChat();
         await this.setMappedCriabotChatId(chatId, startedChatId);
         criabotChatId = startedChatId;
@@ -1055,6 +1048,10 @@ export class EmbedService extends BaseService {
 
       return response;
     } catch (error: any) {
+      const upstreamBody: unknown = error?.response?.data;
+      if (upstreamBody instanceof Readable) {
+        upstreamBody.destroy();
+      }
       if (debugEnabled()) {
         console.error(
           "[EmbedService] Criabot stream chat error:",

@@ -240,6 +240,111 @@ Body (JSON): same as `POST /embed/{botId}/send`
 
 Produces: `text/event-stream` on success. If the upstream request fails before streaming starts, returns a normal `CriaResponse` JSON error instead (e.g. `404 NOT_FOUND` if the bot doesn't have embeds enabled).
 
+#### Chat latency and transport guarantees
+
+- `/send` and `/stream` load the current bot configuration and chat tracking
+  concurrently. A normal message reads tracking once for the mapped Criabot
+  chat ID, prompt context, and personalization. Bot configuration is not cached,
+  so edits remain visible across API replicas without invalidation delays.
+- CriaEmbed shares HTTP/HTTPS keep-alive agents across service instances. Each
+  agent permits 64 connections per origin, 256 total, and 16 idle connections
+  per origin. Caller transport overrides and the
+  `CRIA_BOT_CHAT_TIMEOUT_MS` budget remain supported.
+- The streaming endpoint forwards upstream chunks without accumulating the
+  answer. It sends `X-Accel-Buffering: no` and
+  `Cache-Control: no-cache, no-transform`. The deployed proxy/CDN must honor
+  these headers; application tests cannot verify external proxy configuration.
+- Both endpoints limit prompts to 4000 characters. The streaming endpoint
+  rejects longer prompts with a `400` error before calling Criabot.
+- Chat POSTs are non-idempotent. CriaEmbed retries connection-establishment
+  failures (`ECONNREFUSED`, `ENOTFOUND`, `EAI_AGAIN`, without an HTTP response)
+  once, after 300 ms. It does not replay requests after timeouts, socket resets,
+  or HTTP server errors. Missing Criabot chats retain the create/map/retry-once
+  recovery flow; unused upstream error streams are destroyed.
+- Usage writes remain awaited rather than being moved to a lossy in-memory
+  background task.
+- Criabot runs at most two retrieval prompt variants concurrently, preserving
+  original merge order, search accounting, sources, and reranking behavior.
+  Each variant retains the existing group-search behavior. Failure or
+  cancellation cancels and awaits sibling searches.
+- Criabot does not replay Criadex generation calls (chat, related prompts,
+  transform) after HTTP errors, read/write timeouts, or protocol errors. Only
+  connection-establishment failures retain bounded retries. Read-only search
+  calls retain their existing retry policy. This avoids duplicate generation
+  and repeated timeout delays when a response is lost after a POST was accepted.
+- Criadex reuses a lifespan-managed HTTP client for Ragflow completions,
+  including ownership-conflict recovery. Its connection limit matches the
+  existing LLM admission limit, with up to 16 idle connections. Shutdown closes
+  the client; standalone agents retain their own short-lived client.
+
+This reduces avoidable request overhead without changing model selection,
+generation settings, or retrieval quality. The current upstream SSE path emits
+retrieval/synthesis status events, then chunks the completed model answer; it
+does not yet provide end-to-end token streaming from Ragflow. Measure both time
+to first **answer** chunk and total turn duration in deployment rather than
+treating the first status event as an answer-speed measurement.
+
+#### Regression test cases
+
+From `CriaEmbed/api`, run `npm test -- --runInBand`. Transport and chat tests
+cover:
+
+- One tracking read per normal message, concurrent independent lookups, and no
+  upstream dispatch before both succeed.
+- Mapped/canonical identifiers, enriched prompts, personalization, and edits
+  taking effect on the next message.
+- Actual TCP connection reuse against a local server; connection bounds and
+  caller overrides.
+- Safe retry limits, non-replay of ambiguous failures, bounded missing-chat
+  recovery, and cleanup of discarded HTTP error streams.
+- SSE chunk delivery before completion, anti-buffering headers, and the exact
+  4000/4001-character validation boundary.
+
+From `criabot`, run
+`venv/bin/python -m pytest -q test/test_retriever.py test/test_criadex_client.py`
+for bounded parallel retrieval, deterministic merging, failure/cancellation
+cleanup, and safe generation-call retry policy.
+From `criadex`, run
+`venv/bin/python -m pytest -q test/test_ragflow_chat_resilience.py`
+for shared-client ownership, recovery, and application-lifespan cleanup.
+Tests use mocked providers or local transports, not live model credentials.
+
+#### Responsive embedding
+
+- Popup embeds retain their desktop size (350 by 550 pixels), constrained by
+  available viewport space. At widths up to 600 pixels or heights up to 480
+  pixels, open popups fill the viewport and hide the launcher/resize handles.
+  Visual Viewport resize/scroll events update the popup bounds when mobile
+  keyboards, zoom, or browser controls change the visible area.
+- Pointer Events support mouse, pen, and touch resizing on larger viewports.
+  Dimensions remain viewport-bounded; pointer cancellation, lost capture, and
+  window blur release the resize overlay.
+- Inline embeds retain a 350 by 600 pixel preferred size, with a maximum width
+  of 100% of their host container and a maximum height of `100dvh`. Host
+  containers should have a definite available width. This is not automatic
+  content-height negotiation.
+- Chat layouts track the visible iframe viewport, keep the composer visible,
+  constrain input growth, use compact headers on narrow/short screens, and
+  account for safe-area insets. Wide code blocks scroll internally, and message
+  media is constrained to the bubble.
+- Popup close messages are scoped to the iframe's window and origin. Closing
+  one popup does not unlock host scrolling while another is still open.
+  Launcher buttons expose expanded state and have keyboard button semantics;
+  iframes and close buttons have accessible labels.
+- Empty or failed streams show an error rather than silently submitting the
+  same non-idempotent prompt again through `/send`.
+
+Run `npm test` and `npm run build` from `CriaEmbed/app` for frontend regression
+checks. Tests exercise viewport updates/cleanup, pointer resizing/cancellation,
+multi-popup scroll state, iframe-scoped close messages, inline sizing, and
+non-replay of failed/empty chat streams.
+
+Browser validation uses controlled config/answer responses with actual app and
+popup assets at 280x400, 320x568, 350x550, short landscape, and 1024x768 sizes.
+Verify long titles, URLs, code, tables, composer visibility, and returning from
+full-screen to desktop. These checks do not replace testing a real iOS/Android
+on-screen keyboard or measuring live model/proxy latency.
+
 ### POST /embed/{botId}/load/embedding/upsert
 
 > Nested under the `/embed/{botId}/load` route for historical reasons; `botId` is accepted in the path but not used by the handler — this is an internal/admin operation, not part of the public embed widget surface.

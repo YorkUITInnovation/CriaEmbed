@@ -47,6 +47,7 @@ import {
   EmbedStreamController
 } from "../../src/controllers/embed/EmbedChatController";
 import { CriaError } from "../../src/models/CriaResponse";
+import { PassThrough } from "node:stream";
 
 describe("EmbedChatController", () => {
   let service: {
@@ -172,9 +173,62 @@ describe("EmbedStreamController", () => {
       "Content-Type",
       "text/event-stream"
     );
-    expect(setHeaderSpy).toHaveBeenCalledWith("Cache-Control", "no-cache");
+    expect(setHeaderSpy).toHaveBeenCalledWith(
+      "Cache-Control",
+      "no-cache, no-transform"
+    );
+    expect(setHeaderSpy).toHaveBeenCalledWith("X-Accel-Buffering", "no");
     expect(setHeaderSpy).toHaveBeenCalledWith("Connection", "keep-alive");
     expect(result).toBe(upstreamStream);
+  });
+
+  it("forwards chunks before upstream completion without buffering", async () => {
+    const upstream = new PassThrough();
+    service.streamEmbedChat.mockResolvedValueOnce({
+      status: 200,
+      data: upstream
+    });
+    const result = await controller.stream("bot-id", {
+      chatId: "chat-1",
+      prompt: "hello"
+    });
+    expect(result).toBe(upstream);
+    const chunks: string[] = [];
+    upstream.on("data", (chunk: Buffer) => chunks.push(chunk.toString()));
+    upstream.write('data: {"type":"chunk","content":"Hello"}\n\n');
+    expect(chunks).toEqual(['data: {"type":"chunk","content":"Hello"}\n\n']);
+    expect(upstream.readableEnded).toBe(false);
+    upstream.end();
+  });
+
+  it("rejects prompts above the send endpoint's 4000-character limit", async () => {
+    await expect(
+      controller.stream("bot-id", {
+        chatId: "chat-1",
+        prompt: "a".repeat(4001)
+      })
+    ).rejects.toMatchObject({
+      payload: expect.objectContaining({ status: 400 })
+    });
+    expect(service.streamEmbedChat).not.toHaveBeenCalled();
+  });
+
+  it("accepts a prompt exactly at the 4000-character limit", async () => {
+    const upstream = new PassThrough();
+    service.streamEmbedChat.mockResolvedValueOnce({
+      status: 200,
+      data: upstream
+    });
+    const prompt = "a".repeat(4000);
+    expect(
+      await controller.stream("bot-id", { chatId: "chat-1", prompt })
+    ).toBe(upstream);
+    expect(service.streamEmbedChat).toHaveBeenCalledWith(
+      "bot-id",
+      "chat-1",
+      prompt
+    );
+    upstream.destroy();
   });
 
   it("returns JSON error payload when upstream responds with non-200", async () => {

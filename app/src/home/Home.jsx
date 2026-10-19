@@ -4,10 +4,14 @@ import ChatList from "./components/chat/ChatList.jsx";
 import QueryBox from "./components/query/QueryBox.jsx";
 import ChatHeader from "./components/chat/ChatHeader.jsx";
 import PrintDebug from "./components/PrintDebug.jsx";
+import { observeViewport } from "./utils/viewport.js";
 
 const Container = styled.div`
   margin: auto;
-  height: 100svh; // Property does exist in the modern world :)
+  height: 100%;
+  height: var(--cria-app-height, 100dvh);
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
   width: 100%;
   min-height: 0;
   display: flex;
@@ -25,7 +29,10 @@ const Container = styled.div`
 
 const ErrorContainer = styled.div`
   margin: 0;
-  min-height: 100svh;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100%;
+  min-height: var(--cria-app-height, 100dvh);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -35,6 +42,7 @@ const ErrorContainer = styled.div`
 `;
 
 const ErrorCard = styled.div`
+  box-sizing: border-box;
   max-width: 720px;
   width: 100%;
   border: 1px solid #f1b3b3;
@@ -50,6 +58,7 @@ const ErrorCard = styled.div`
 
 export default class Home extends Component {
   #mounted = false;
+  #stopObservingViewport;
   state = {
     chatExpired: false,
     configLoaded: false,
@@ -58,6 +67,10 @@ export default class Home extends Component {
   };
 
   async componentDidMount() {
+    this.#stopObservingViewport = observeViewport(
+      window,
+      document.documentElement
+    );
     if (this.#mounted) return;
     this.#mounted = true;
     document.addEventListener("chatExpired", () =>
@@ -98,6 +111,10 @@ export default class Home extends Component {
       console.error("[CriaEmbedApp] bootstrap failed", e, window.Cria);
       this.setState({ configLoaded: false, configError: message });
     }
+  }
+
+  componentWillUnmount() {
+    this.#stopObservingViewport?.();
   }
 
   render() {

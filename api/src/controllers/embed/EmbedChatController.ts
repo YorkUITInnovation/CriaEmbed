@@ -17,6 +17,8 @@ type ChatPayload = {
   prompt: string;
 };
 
+const MAX_PROMPT_LENGTH = 4000;
+
 @Tags("Embed")
 @Route("/embed/{botId}/send")
 export class EmbedChatController extends BaseController {
@@ -46,7 +48,6 @@ export class EmbedChatController extends BaseController {
     }
 
     // Protect against excessively large prompts
-    const MAX_PROMPT_LENGTH = 4000;
     if (prompt.length > MAX_PROMPT_LENGTH) {
       throw new CriaError(
         `prompt exceeds maximum length of ${MAX_PROMPT_LENGTH} characters.`
@@ -130,6 +131,12 @@ export class EmbedStreamController extends BaseController {
     if (prompt.trim().length === 0) {
       throw new CriaError("prompt must not be empty.", 400);
     }
+    if (prompt.length > MAX_PROMPT_LENGTH) {
+      throw new CriaError(
+        `prompt exceeds maximum length of ${MAX_PROMPT_LENGTH} characters.`,
+        400
+      );
+    }
 
     try {
       const response = await this.service.streamEmbedChat(
@@ -165,7 +172,8 @@ export class EmbedStreamController extends BaseController {
 
       this.setStatus(200);
       this.setHeader("Content-Type", "text/event-stream");
-      this.setHeader("Cache-Control", "no-cache");
+      this.setHeader("Cache-Control", "no-cache, no-transform");
+      this.setHeader("X-Accel-Buffering", "no");
       this.setHeader("Connection", "keep-alive");
       // Return the upstream stream so TSOA pipes it to the client.
       // Do not return "" here: TSOA would call res.json("") and clobber SSE.

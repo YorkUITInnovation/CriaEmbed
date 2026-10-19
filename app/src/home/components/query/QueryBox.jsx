@@ -14,10 +14,15 @@ import { chatTimeoutMs } from "../../utils/chatTimeout.js";
 
 const OuterContainer = styled.div`
   width: 100%;
+  min-width: 0;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  padding: 0 env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px)
+    env(safe-area-inset-left, 0px);
 `;
 
 const SubOuterContainer = styled.div`
-  margin: 0 15px 15px 15px;
+  margin: 0 clamp(6px, 3vw, 15px) clamp(6px, 2vh, 15px);
 `;
 
 const Container = styled.div`
@@ -46,6 +51,8 @@ const TrustWarning = styled.span`
 
 const ButtonArea = styled.div`
   display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
   justify-content: space-between;
   margin-left: 8px;
   margin-bottom: 5px;
@@ -154,14 +161,7 @@ export default class QueryBox extends Component {
 
     document.dispatchEvent(new CustomEvent("chatSend", { detail: content }));
 
-    // Try streaming first, fall back to regular send if not available
-    const useStreaming = true; // Can be controlled by feature flag
-
-    if (useStreaming) {
-      return this.sendChatStreaming(content);
-    } else {
-      return this.sendChatRegular(content);
-    }
+    return this.sendChatStreaming(content);
   }
 
   componentWillUnmount() {
@@ -246,8 +246,11 @@ export default class QueryBox extends Component {
           }
 
           if (!result.message?.trim()) {
-            // Empty SSE payload usually means the stream proxy failed; fall back.
-            this.sendChatRegular(content);
+            const message =
+              "The response ended without an answer. Please try again.";
+            document.dispatchEvent(
+              new CustomEvent("chatStreamError", { detail: { message } })
+            );
             return;
           }
 
@@ -275,8 +278,13 @@ export default class QueryBox extends Component {
       return result;
     } catch (error) {
       console.error("Streaming error:", error);
-      // Fall back to regular send
-      return this.sendChatRegular(content);
+      document.dispatchEvent(
+        new CustomEvent("chatStreamError", {
+          detail: {
+            message: error.message || "Unable to complete the response.",
+          },
+        })
+      );
     }
   }
 

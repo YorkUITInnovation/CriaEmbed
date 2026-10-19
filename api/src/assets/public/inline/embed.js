@@ -12,10 +12,23 @@
     criaEmbed.setAttribute("botId", botId);
     criaEmbed.setAttribute("height", "600");
     criaEmbed.setAttribute("width", "350");
+    criaEmbed.title = "Chat assistant";
+    criaEmbed.style.width = "350px";
+    criaEmbed.style.maxWidth = "100%";
+    criaEmbed.style.height = "600px";
+    criaEmbed.style.maxHeight = "100dvh";
+    criaEmbed.style.border = "0";
+    criaEmbed.style.display = "block";
 
     const criaEmbedURL = new URL(chatConfig.webAppUrl);
 
-    for (const prop of ["botId", "chatId", "webAppUrl", "chatApiUrl", "devKey"]) {
+    for (const prop of [
+      "botId",
+      "chatId",
+      "webAppUrl",
+      "chatApiUrl",
+      "devKey"
+    ]) {
       if (typeof chatConfig[prop] !== "function" && chatConfig[prop] != null) {
         criaEmbedURL.searchParams.set(prop, String(chatConfig[prop]));
       }

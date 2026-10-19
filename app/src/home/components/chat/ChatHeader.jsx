@@ -13,10 +13,15 @@ const Container = styled.div`
   color: ${(props) => pickFontColorFromBg(props.$bgColor)};
   box-shadow: 0 2px 5px 2px rgba(0, 0, 0, 0.15);
   margin-bottom: 8px;
+  @media (max-width: 360px), (max-height: 480px) {
+    height: 60px;
+    margin-bottom: 4px;
+  }
 `;
 
 const TextContainer = styled.div`
-  margin-left: 20px;
+  margin-left: clamp(8px, 4vw, 20px);
+  flex: 1;
   display: flex;
   flex-direction: column;
   /* Tenant-supplied name/subtitle; keep them from pushing out the buttons. */
@@ -33,6 +38,9 @@ const ButtonContainer = styled.div`
 const Logo = styled.img`
   pointer-events: none;
   width: 60px;
+  @media (max-width: 360px), (max-height: 480px) {
+    width: 36px;
+  }
   margin-bottom: -3px;
   filter: ${(props) => (props.$isDarkBg ? "invert(0)" : "invert(1)")};
   -webkit-filter: ${(props) => (props.$isDarkBg ? "invert(0)" : "invert(1)")};
@@ -40,8 +48,8 @@ const Logo = styled.img`
 
 const LogoLink = styled.a`
   cursor: pointer;
-  margin-left: 20px;
-  margin-right: 14px;
+  margin-left: clamp(4px, 3vw, 20px);
+  margin-right: clamp(4px, 2vw, 14px);
   user-select: none;
 
   &:hover {
@@ -74,6 +82,8 @@ const CloseMenuButton = styled.button`
   cursor: pointer;
   color: white;
   padding: 5px 10px;
+  min-width: 44px;
+  min-height: 44px;
   font-weight: bold;
   border-radius: 5px;
 
@@ -180,6 +190,7 @@ export default class ChatHeader extends Component {
         <ButtonContainer>
           {logo}
           <CloseMenuButton
+            aria-label="Close chat"
             onClick={() => {
               (window.parent || window).postMessage(
                 JSON.stringify({ action: "criaSetEmbedEnabled", value: false }),
