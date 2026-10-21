@@ -970,6 +970,72 @@ describe("EmbedService", () => {
   });
 
   describe("streamEmbedChat", () => {
+    it("owns an upstream reset before any downstream error listener attaches", async () => {
+      const upstream = new PassThrough();
+      mockedAxios.post.mockResolvedValueOnce({ status: 200, data: upstream } as any);
+      const log = jest.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        const response = await embedService.streamEmbedChat("mock-bot", "chat-reset", "hello");
+        upstream.destroy(Object.assign(new Error("aborted"), { code: "ECONNRESET" }));
+        await new Promise(resolve => setImmediate(resolve));
+        await new Promise(resolve => setImmediate(resolve));
+        expect(response.data.destroyed).toBe(true);
+        expect(response.data.errored).toMatchObject({ code: "ECONNRESET" });
+        expect(log).toHaveBeenCalledWith(
+          "[EmbedService] Criabot stream interrupted:", "aborted"
+        );
+        expect(mockUsageLog.insert).not.toHaveBeenCalled();
+      } finally {
+        log.mockRestore();
+      }
+    });
+
+    it.each([undefined, 2])(
+      "logs the enriched prompt once for stream version %s",
+      async version => {
+        mockTrackingCache.get.mockResolvedValueOnce({
+          courseId: 13,
+          courseName: "Art of Art",
+          name: "Alex"
+        });
+        const prompt = "Unique synthetic question";
+        const enriched = buildEmbedCriabotPrompt(prompt, {
+          courseId: 13,
+          courseName: "Art of Art",
+          name: "Alex"
+        });
+        const upstream = new PassThrough();
+        mockedAxios.post.mockResolvedValueOnce({
+          status: 200,
+          data: upstream
+        } as any);
+        const response = await embedService.streamEmbedChat(
+          "mock-bot",
+          "chat-logged",
+          prompt,
+          version
+        );
+        const ended = new Promise<void>((resolve, reject) => {
+          response.data.on("end", resolve);
+          response.data.on("error", reject);
+          response.data.resume();
+        });
+        upstream.end(
+          'data: {"type":"chunk","content":"Answer"}\n\n' +
+            'data: {"type":"done","elapsed_ms":1}\n\n'
+        );
+        await ended;
+        expect(mockUsageLog.insert).toHaveBeenCalledTimes(1);
+        const record = mockUsageLog.insert.mock.calls[0][0];
+        expect(record.prompt).toBe(enriched);
+        expect(JSON.parse(record.payload).request).toMatchObject({
+          stream: true,
+          prompt: enriched
+        });
+        expect(enriched).toMatch(/q: Unique synthetic question$/);
+      }
+    );
+
     it("should proxy stream requests to the Criabot stream endpoint", async () => {
       mockManageService.retrieveBot.mockResolvedValueOnce({
         botName: "mock-bot",

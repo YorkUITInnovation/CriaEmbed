@@ -4,7 +4,8 @@ jest.mock("ioredis", () =>
   jest.fn().mockImplementation(() => ({
     on: jest.fn(),
     call: jest.fn(),
-    quit: jest.fn().mockResolvedValue("OK")
+    quit: jest.fn().mockResolvedValue("OK"),
+    disconnect: jest.fn()
   }))
 );
 jest.mock("rate-limit-redis", () => jest.fn().mockImplementation(() => ({})));
@@ -33,6 +34,42 @@ describe("Redis database selection", () => {
       if (previousLimitDb === undefined) delete process.env.RATE_LIMIT_REDIS_DB;
       else process.env.RATE_LIMIT_REDIS_DB = previousLimitDb;
     }
+  });
+
+  it("configures the main pool to fail fast and registers an error listener", () => {
+    jest.isolateModules(() => {
+      require("../../src/database/redis/redis");
+      expect(jest.requireMock("ioredis")).toHaveBeenCalledWith(
+        expect.objectContaining({
+          maxRetriesPerRequest: 1,
+          enableOfflineQueue: false
+        })
+      );
+      const instances = (jest.requireMock("ioredis") as jest.Mock).mock.results
+        .map((r: { type: string; value: { on?: jest.Mock } }) =>
+          r.type === "return" ? r.value : undefined
+        )
+        .filter(Boolean);
+      expect(
+        instances.some(inst =>
+          inst!.on!.mock.calls.some((call: unknown[]) => call[0] === "error")
+        )
+      ).toBe(true);
+    });
+  });
+
+  it("disconnects instead of quit() when the pool never became ready", async () => {
+    let pool: { status?: string; quit: jest.Mock; disconnect: jest.Mock };
+    let closeRedisPool: () => Promise<void>;
+    jest.isolateModules(() => {
+      const mod = require("../../src/database/redis/redis");
+      pool = mod.REDIS_POOL;
+      closeRedisPool = mod.closeRedisPool;
+    });
+    pool!.status = "connecting";
+    await closeRedisPool!();
+    expect(pool!.disconnect).toHaveBeenCalledTimes(1);
+    expect(pool!.quit).not.toHaveBeenCalled();
   });
 
   it("preserves the existing DB 0 default", () => {

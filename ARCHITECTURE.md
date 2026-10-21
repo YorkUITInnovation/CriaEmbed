@@ -129,7 +129,8 @@ Publish sync (MARS / manage API → Criabot): `PATCH /manage/{botId}/config` wit
 
 ## 8. Deployment & Environments
 
-- **Docker**: `api/Dockerfile`, `app/Dockerfile`; env via `.env` / compose (`EMBED_INTERNAL_TOKEN` must match Criabot's `CRIAEMBED_INTERNAL_TOKEN`).
+- **Docker**: `api/Dockerfile`, `app/Dockerfile` build in-image (builder `npm ci` + `npm run build`; runtime `npm ci --omit=dev`) — clean-checkout `docker build` needs no host npm/dist. `./build.sh` in each dir builds+pushes release tags. Env via `.env` / compose (`EMBED_INTERNAL_TOKEN` must match Criabot's `CRIAEMBED_INTERNAL_TOKEN`).
+- **Redis**: state pool fails fast on transient errors and reconnects in background (`/readyz` reports the outage instead of the process crashing).
 - **Local**: `npm run dev` / `npm run test` under `/api`; Vite under `/app`.
 
 ## 9. Security & Authentication

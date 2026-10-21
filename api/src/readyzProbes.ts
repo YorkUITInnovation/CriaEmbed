@@ -38,14 +38,29 @@ export async function probeRedisReady(
   timeoutMs: number = READY_PROBE_MS
 ): Promise<void> {
   const client = REDIS_POOL.duplicate();
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     await Promise.race([
-      client.ping(),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("timeout")), timeoutMs)
-      )
+      (async () => {
+        // Pool fails fast offline, so wait until ready before pinging.
+        const c = client as unknown as {
+          status?: string;
+          once?: (event: string, cb: () => void) => void;
+        };
+        if (c.status !== "ready" && typeof c.once === "function") {
+          await new Promise<void>((resolve, reject) => {
+            c.once!("ready", resolve);
+            c.once!("error", reject);
+          });
+        }
+        await client.ping();
+      })(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("timeout")), timeoutMs);
+      })
     ]);
   } finally {
+    if (timer) clearTimeout(timer);
     try {
       client.disconnect();
     } catch {

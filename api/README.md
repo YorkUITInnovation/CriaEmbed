@@ -59,6 +59,13 @@ RATE_LIMIT_HOUR_MAX=120
 RATE_LIMIT_DAY_MAX=1000
 ```
 
+## Docker
+
+`docker build .` from this directory builds everything in-image (builder
+stage runs `npm ci` + `npm run build`); no host `npm install`/dist needed.
+`./build.sh` builds and pushes the release image (override with
+`VERSION=...`).
+
 ## Local Development
 
 1.  **Install dependencies from the `/api` directory:**

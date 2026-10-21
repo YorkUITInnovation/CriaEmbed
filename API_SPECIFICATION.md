@@ -278,7 +278,9 @@ Produces: `text/event-stream` on success. If the upstream request fails before s
   `Cache-Control: no-cache, no-transform`. The deployed proxy/CDN must honor
   these headers; application tests cannot verify external proxy configuration.
 - Both endpoints limit prompts to 4000 characters. The streaming endpoint
-  rejects longer prompts with a `400` error before calling Criabot.
+  rejects empty/whitespace-only and longer prompts with an HTTP `400` JSON
+  error before calling Criabot. Typed `CriaError` statuses are preserved by
+  the Express error boundary rather than mapped to generic HTTP `500`.
 - Chat POSTs are non-idempotent. CriaEmbed retries connection-establishment
   failures (`ECONNREFUSED`, `ENOTFOUND`, `EAI_AGAIN`, without an HTTP response)
   once, after 300 ms. It does not replay requests after timeouts, socket resets,
@@ -286,6 +288,8 @@ Produces: `text/event-stream` on success. If the upstream request fails before s
   recovery flow; unused upstream error streams are destroyed.
 - On `done`, the stream tap starts one usage-log write attempt. EOF and tap
   destruction await its settlement; earlier answer deltas are not delayed.
+  The stored prompt is the enriched Criabot prompt (including `q:` and any
+  tracking/course context), not necessarily the browser's raw prompt.
   `done` itself can reach the browser before the insert settles. Writes retain
   the blocking path's best-effort failure policy, not durable exactly-once
   accounting. Streams without `done` do not create a completed-turn usage row.
@@ -293,6 +297,12 @@ Produces: `text/event-stream` on success. If the upstream request fails before s
   response headers are pending. It aborts Axios and destroys established streams;
   a late upstream response is also destroyed. A close during preparation prevents
   subsequent generation dispatch, but does not cancel the database/cache lookups.
+- Upstream stream resets have an error owner on the usage tap before it is
+  handed to the controller. The interruption is logged, upstream work is
+  cancelled and the affected HTTP response is destroyed, not ended as a
+  successful SSE response. This also handles errors emitted before the
+  controller receives the stream. No generation replay, fabricated `done`
+  event or completed-turn usage row is introduced for incomplete streams.
 - Criabot runs at most two retrieval prompt variants concurrently, preserving
   original merge order, search accounting, sources, and reranking behavior.
   Each variant retains the existing group-search behavior. Failure or

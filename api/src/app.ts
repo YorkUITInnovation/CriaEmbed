@@ -19,6 +19,7 @@ import {
 } from "./correlation.js";
 import { METRICS, metricsMiddleware } from "./httpMetrics.js";
 import { probeMysqlReady, probeRedisReady } from "./readyzProbes.js";
+import { criaErrorMiddleware } from "./criaErrorMiddleware.js";
 
 // Node 22+ rejects bare JSON ESM imports without import attributes; require stays portable.
 const require = createRequire(import.meta.url);
@@ -259,6 +260,7 @@ baseRouter.get("/manage/_diagnose", async (_: Request, res: Response) => {
 });
 
 // Basic handler for errors
+baseRouter.use(criaErrorMiddleware);
 baseRouter.use(
   (err: unknown, req: Request, res: Response, next: NextFunction) => {
     // From docs, may as well keep

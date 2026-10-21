@@ -205,6 +205,20 @@ export class EmbedStreamController extends BaseController {
       this.setHeader("Cache-Control", "no-cache, no-transform");
       this.setHeader("X-Accel-Buffering", "no");
       this.setHeader("Connection", "keep-alive");
+      if (response.data instanceof Readable) {
+        const upstream = response.data;
+        const onStreamError = () => {
+          // A partial SSE response must terminate, never become a successful EOF.
+          upstreamCancel?.();
+          if (res && !res.destroyed) {
+            res.destroy();
+          }
+        };
+        upstream.on("error", onStreamError);
+        if (upstream.errored) {
+          onStreamError();
+        }
+      }
       // Return the upstream stream so TSOA pipes it to the client.
       // Do not return "" here: TSOA would call res.json("") and clobber SSE.
       return response.data;

@@ -1107,6 +1107,10 @@ export class EmbedService extends BaseService {
         })();
       }
     });
+    // Own errors before handing the stream to the controller or HTTP consumer.
+    tap.on("error", (error: Error) => {
+      console.error("[EmbedService] Criabot stream interrupted:", error.message);
+    });
     upstream.on("error", err => tap.destroy(err));
     return tap;
   }
