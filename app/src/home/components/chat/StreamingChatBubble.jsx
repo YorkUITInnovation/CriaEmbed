@@ -1,9 +1,11 @@
-import React from "react";
+import React, { useContext } from "react";
 import styled from "styled-components";
 import { AnimatePresence, motion } from "framer-motion";
 import ReasoningBlock from "./ReasoningBlock.jsx";
 import ShimmerSkeleton from "./ShimmerSkeleton.jsx";
 import SourceCitations from "./SourceCitations.jsx";
+import { ShowSourcesContext } from "./showSourcesContext.js";
+import { shouldRenderSources } from "../../utils/showSources.js";
 import { parseHTMLEmojis } from "./Chat.jsx";
 import { buildThinkingSummary, getAccentColor } from "./agentChatTheme.js";
 
@@ -106,6 +108,7 @@ export default function StreamingChatBubble({
   hasError = false,
   errorMessage = null,
 }) {
+  const showSources = useContext(ShowSourcesContext);
   const sourceCount = citations.length;
   const summary = buildThinkingSummary({
     steps,
@@ -176,7 +179,9 @@ export default function StreamingChatBubble({
           </MessageText>
         )}
 
-        {citations.length > 0 && <SourceCitations sources={citations} />}
+        {shouldRenderSources(showSources, citations) && (
+          <SourceCitations sources={citations} />
+        )}
       </ContentStack>
     </AgentShell>
   );

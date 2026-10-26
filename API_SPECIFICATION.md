@@ -3,7 +3,7 @@
 ## Authentication
 
 - Endpoints under `/manage`, `POST /embed/{botId}/load`, and `POST /embed/{botId}/load/embedding/{upsert,search}` require `X-Api-Key` header.
-- `GET /internal/usage-logs` requires `X-Internal-Token` matching `EMBED_INTERNAL_TOKEN` (server-to-server; used by Criabot's usage-log gateway — not the public widget API key).
+- `GET`/`POST /internal/usage-logs` require `X-Internal-Token` matching `EMBED_INTERNAL_TOKEN` (server-to-server; used by Criabot's usage-log gateway — not the public widget API key).
 - When Criabot pushes embed config updates, it sends `X-Internal-Service: criabot` so CriaEmbed skips syncing publish status back (prevents a feedback loop). Outbound CriaEmbed→Criabot calls send `X-Internal-Service: criaembed` to bypass Criabot rate limits.
 - Other endpoints are public but may enforce rate limits.
 
@@ -193,7 +193,9 @@ Responses:
       "botLocale": "en-US",
       "initialPrompts": [],
       "botTrustWarning": null,
-      "botContact": null
+      "botContact": null,
+      "showSources": true,
+      "autoScrollTop": true
     }
   }
   ```
@@ -551,9 +553,13 @@ Body (JSON): `IBotBaseEmbedConfig`
   "integrationsFirstEmailOnly": false,
   "integrationsWhitelistFilter": "*",
   "embedHoverTooltip": "Click me!",
-  "botContact": "contact@example.com"
+  "botContact": "contact@example.com",
+  "showSources": true,
+  "autoScrollTop": true
 }
 ```
+
+`showSources` and `autoScrollTop` are bot-owner display settings (booleans, default `true`) pushed by Criabot in the manage config payload; `showSources` controls source citations under bot replies and `autoScrollTop` controls auto-scrolling to the top of the latest reply.
 
 `publish` is mirrored from Criabot and defaults to `false` (fail closed). `developerMode` is an optional string key; when set (and `publish` is false), callers can load the widget with `?dev-key=<key>` for staging.
 
@@ -660,6 +666,39 @@ Responses:
   }
   ```
 - `401 UNAUTHORIZED` if the internal token is missing/invalid
+
+### POST /internal/usage-logs
+
+Writes one usage-log row. Server-to-server only: **Criabot is the writer for
+all non-embed chat traffic** (successes and failures; rows carry
+`other.status` = `ok`|`error`). Embed-originated chats are logged by
+`EmbedService` itself and excluded Criabot-side via the
+`X-Cria-Usage-Source: criaembed` marker header — do not re-post them here.
+
+Headers:
+
+- `X-Internal-Token` (string, required) — must equal `EMBED_INTERNAL_TOKEN`
+
+Body (JSON):
+
+- `bot_name` (string, required) — resolved to the embed `bot_id`
+- `userid`, `confidence`, `prompt_tokens`, `completion_tokens`, `total_tokens`, `cost` (number, optional)
+- `prompt`, `message`, `ip` (string, optional)
+- `group_responses`, `other` (object, optional)
+- `request_payload`, `response_payload` (any, optional)
+
+Responses:
+
+- `200 OK` — `{ "status": 200, "code": "SUCCESS", "id": <row id>, ... }`
+- `400 INVALID` — `bot_name` missing/empty
+- `401 UNAUTHORIZED` — internal token missing/invalid
+- `404 NOT_FOUND` — unknown `bot_name`
+- `500 ERROR` — insert failure
+
+**Retention & indexing:** a purge job deletes rows older than
+`EMBED_USAGE_LOG_RETENTION_DAYS` (default 30, ≤0 disables) — see
+`api/README.md`. A composite `idx_bot_timecreated (bot_id, timecreated)`
+index keeps per-bot time-range scans fast.
 
 ---
 

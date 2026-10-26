@@ -33,6 +33,7 @@ jest.mock("tsoa", () => {
   return {
     Controller: MockController,
     Body: decorator,
+    Header: decorator,
     Middlewares: decorator,
     Path: decorator,
     Post: decorator,
@@ -108,13 +109,46 @@ describe("EmbedChatController", () => {
       "chat-1",
       "hello",
       false,
-      "127.0.0.1"
+      "127.0.0.1",
+      null
     );
     expect(result).toMatchObject({
       status: 200,
       code: "SUCCESS",
       reply: "Hello there"
     });
+  });
+
+  it("forwards the X-Cria-Identity header verbatim to the service", async () => {
+    service.sendEmbedChat.mockResolvedValueOnce({
+      status: 200,
+      code: "SUCCESS",
+      timestamp: "1",
+      message: "ok",
+      reply: "Hello there",
+      replyId: "reply-1",
+      relatedPrompts: null,
+      verifiedResponse: null
+    });
+
+    await controller.send(
+      "bot-id",
+      {
+        chatId: "chat-1",
+        prompt: "hello"
+      },
+      mockRequest,
+      "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzdHVkZW50LTEyMyJ9.signature"
+    );
+
+    expect(service.sendEmbedChat).toHaveBeenCalledWith(
+      "bot-id",
+      "chat-1",
+      "hello",
+      false,
+      "127.0.0.1",
+      "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzdHVkZW50LTEyMyJ9.signature"
+    );
   });
 });
 
@@ -260,8 +294,14 @@ describe("EmbedStreamController", () => {
       destroyed: false,
       destroy: jest.fn()
     });
-    await controller.stream("bot-id", { chatId: "chat-reset", prompt: "hello" }, { res } as any);
-    upstream.destroy(Object.assign(new Error("aborted"), { code: "ECONNRESET" }));
+    await controller.stream(
+      "bot-id",
+      { chatId: "chat-reset", prompt: "hello" },
+      { res } as any
+    );
+    upstream.destroy(
+      Object.assign(new Error("aborted"), { code: "ECONNRESET" })
+    );
     await new Promise(resolve => setImmediate(resolve));
     expect(res.destroy).toHaveBeenCalledTimes(1);
     expect(cancel).toHaveBeenCalledTimes(1);
@@ -278,7 +318,8 @@ describe("EmbedStreamController", () => {
     );
     const app = express();
     app.post("/stream", (req, res, next) => {
-      void controller.stream("bot-id", { chatId: "chat-reset", prompt: "hello" }, req)
+      void controller
+        .stream("bot-id", { chatId: "chat-reset", prompt: "hello" }, req)
         .then(result => {
           if (result instanceof PassThrough) {
             res.setHeader("Content-Type", "text/event-stream");
@@ -293,11 +334,15 @@ describe("EmbedStreamController", () => {
     try {
       await new Promise<void>(resolve => server.once("listening", resolve));
       const port = (server.address() as AddressInfo).port;
-      const response = await fetch(`http://127.0.0.1:${port}/stream`, { method: "POST" });
+      const response = await fetch(`http://127.0.0.1:${port}/stream`, {
+        method: "POST"
+      });
       const reader = response.body!.getReader();
       const first = await reader.read();
       expect(new TextDecoder().decode(first.value)).toContain("partial");
-      upstream.destroy(Object.assign(new Error("aborted"), { code: "ECONNRESET" }));
+      upstream.destroy(
+        Object.assign(new Error("aborted"), { code: "ECONNRESET" })
+      );
       await expect(reader.read()).rejects.toThrow();
       expect(cancel).toHaveBeenCalled();
       const health = await fetch(`http://127.0.0.1:${port}/health`);
@@ -305,7 +350,7 @@ describe("EmbedStreamController", () => {
     } finally {
       server.closeAllConnections();
       await new Promise<void>((resolve, reject) =>
-        server.close(error => error ? reject(error) : resolve())
+        server.close(error => (error ? reject(error) : resolve()))
       );
     }
   });
@@ -315,12 +360,19 @@ describe("EmbedStreamController", () => {
     upstream.on("error", () => {});
     upstream.destroy(new Error("early reset"));
     await new Promise(resolve => setImmediate(resolve));
-    service.streamEmbedChat.mockResolvedValueOnce({ status: 200, data: upstream });
+    service.streamEmbedChat.mockResolvedValueOnce({
+      status: 200,
+      data: upstream
+    });
     const res = Object.assign(new EventEmitter(), {
       destroyed: false,
       destroy: jest.fn()
     });
-    await controller.stream("bot-id", { chatId: "chat-early-reset", prompt: "hello" }, { res } as any);
+    await controller.stream(
+      "bot-id",
+      { chatId: "chat-early-reset", prompt: "hello" },
+      { res } as any
+    );
     expect(res.destroy).toHaveBeenCalledTimes(1);
   });
 
@@ -377,6 +429,45 @@ describe("EmbedStreamController", () => {
       prompt,
       undefined,
       expect.any(Object)
+    );
+    upstream.destroy();
+  });
+
+  it("forwards the X-Cria-Identity header verbatim in the stream hooks", async () => {
+    const upstream = new PassThrough();
+    service.streamEmbedChat.mockResolvedValueOnce({
+      status: 200,
+      data: upstream
+    });
+    await controller.stream(
+      "bot-id",
+      { chatId: "chat-1", prompt: "hello" },
+      { ip: "127.0.0.1" } as any,
+      "signed.identity.token"
+    );
+    expect(service.streamEmbedChat).toHaveBeenCalledWith(
+      "bot-id",
+      "chat-1",
+      "hello",
+      undefined,
+      expect.objectContaining({ criaIdentity: "signed.identity.token" })
+    );
+    upstream.destroy();
+  });
+
+  it("passes a null criaIdentity when the header is absent", async () => {
+    const upstream = new PassThrough();
+    service.streamEmbedChat.mockResolvedValueOnce({
+      status: 200,
+      data: upstream
+    });
+    await controller.stream("bot-id", { chatId: "chat-1", prompt: "hello" });
+    expect(service.streamEmbedChat).toHaveBeenCalledWith(
+      "bot-id",
+      "chat-1",
+      "hello",
+      undefined,
+      expect.objectContaining({ criaIdentity: null })
     );
     upstream.destroy();
   });

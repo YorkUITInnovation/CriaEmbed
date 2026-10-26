@@ -97,6 +97,37 @@ describe("UsageLog (DB controller)", () => {
     expect(selectCall[1]).toEqual([1, 2, 100, 200, 20, 0]);
   });
 
+  it("deletes rows older than a cutoff in a bounded batch", async () => {
+    const pool = {
+      query: jest.fn((sql: string, values: any[], cb: any) =>
+        cb(null, { affectedRows: 7 })
+      )
+    };
+    const usageLog = new UsageLog(pool as any);
+
+    const deleted = await usageLog.deleteOlderThan(1699000000, 1000);
+
+    expect(deleted).toBe(7);
+    expect(pool.query).toHaveBeenCalledWith(
+      "DELETE FROM `EmbedUsageLog` WHERE timecreated < ? LIMIT ?",
+      [1699000000, 1000],
+      expect.any(Function)
+    );
+  });
+
+  it("rejects when the delete query errors", async () => {
+    const pool = {
+      query: jest.fn((sql: string, values: any[], cb: any) =>
+        cb(new Error("db down"))
+      )
+    };
+    const usageLog = new UsageLog(pool as any);
+
+    await expect(usageLog.deleteOlderThan(1699000000, 1000)).rejects.toThrow(
+      "db down"
+    );
+  });
+
   it("clamps page/limit to sane bounds", async () => {
     const pool = makeMockPool({ onSelect: () => [], onCount: () => 0 });
     const usageLog = new UsageLog(pool as any);

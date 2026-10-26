@@ -9,6 +9,7 @@ import {
 } from "./ChatSystemMessage.jsx";
 import ChatExpiredButton from "./ChatExpiredButton.jsx";
 import { chatTimeoutMs } from "../../utils/chatTimeout.js";
+import { shouldAutoAnchorToResponseTop } from "../../utils/showSources.js";
 
 const Frame = styled.div`
   position: relative;
@@ -316,6 +317,12 @@ export default class ChatList extends Component {
       streamingUpdated ||
       streamingFinished;
 
+    // Auto-scroll ON: a finished reply anchors to its top instead of
+    // sticking to the bottom (chip click behavior, now automatic).
+    if (streamingFinished && this.tryAutoAnchorToLatestResponse()) {
+      return;
+    }
+
     if (
       shouldStickToBottom &&
       wasNearBottomBefore &&
@@ -362,6 +369,41 @@ export default class ChatList extends Component {
       this.cancelSmoothScroll();
     }
   };
+
+  tryAutoAnchorToLatestResponse() {
+    // Use the latest chat entry rather than `addedBotReply` so the check
+    // holds whether or not React batches the finalize setState pair.
+    const latestChat = this.state.chats[this.state.chats.length - 1];
+    if (
+      !shouldAutoAnchorToResponseTop({
+        autoScrollTop: this.props.autoScrollTop,
+        streamingFinished: true,
+        addedBotReply: latestChat?.props?.userMessage === false,
+        userScrolledAway: this.#lockAutoStickToBottom,
+      })
+    ) {
+      return false;
+    }
+
+    const chatList = this.getChatListElement();
+    const latestResponse = this.getLatestBotResponseElement();
+    if (!chatList || !latestResponse) return false;
+
+    const listRect = chatList.getBoundingClientRect();
+    const responseRect = latestResponse.getBoundingClientRect();
+
+    // Only anchor when the reply's start is out of view (long reply while
+    // stuck to the bottom). Short replies already fit on screen: no jump,
+    // no odd empty space.
+    const topInView =
+      responseRect.top >= listRect.top - 1 &&
+      responseRect.top <= listRect.bottom;
+    if (topInView) return false;
+
+    // Same anchor path as the "Response ready" chip.
+    this.onJumpToLatestResponse();
+    return true;
+  }
 
   onJumpToLatestResponse = () => {
     this.#lockAutoStickToBottom = false;

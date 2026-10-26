@@ -37,6 +37,10 @@ export interface IBotBaseEmbedConfig {
   publish?: boolean | null;
   /** Optional development-only key that bypasses the publish gate for embed loading. */
   developerMode?: string | null;
+  /** Bot-owner display setting: show source citations under bot replies. Defaults true. */
+  showSources?: boolean | null;
+  /** Bot-owner display setting: auto-scroll to the top of the latest reply. Defaults true. */
+  autoScrollTop?: boolean | null;
 }
 
 export interface IBotEmbedConfig extends IBotBaseEmbedConfig {
@@ -86,6 +90,15 @@ export class BotEmbed extends MySQLController {
       res["botWatermark"] !== null ? Boolean(res["botWatermark"]) : null;
     // Coerce to bool so a non-truthy value reads as unpublished (fail closed).
     res["publish"] = Boolean(res["publish"]);
+    // Display flags default on when the column is absent.
+    res["showSources"] =
+      res["showSources"] === null || res["showSources"] === undefined
+        ? true
+        : Boolean(res["showSources"]);
+    res["autoScrollTop"] =
+      res["autoScrollTop"] === null || res["autoScrollTop"] === undefined
+        ? true
+        : Boolean(res["autoScrollTop"]);
 
     return res as IBotEmbed;
   }
@@ -157,8 +170,9 @@ export class BotEmbed extends MySQLController {
               INSERT INTO \`EmbedBot\` (botName, botTitle, botSubTitle, botGreeting, botIconUrl, botEmbedTheme,
                                         botWatermark, botLocale, initialPrompts, botEmbedPosition, microsoftAppId, microsoftAppPassword,
                                         integrationsNoContextReply, integrationsFirstEmailOnly, integrationsWhitelistFilter, botEmbedDefaultEnabled,
-                                        botTrustWarning, embedHoverTooltip, botContact, publish, developerMode, personalizationPayload)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        botTrustWarning, embedHoverTooltip, botContact, publish, developerMode, personalizationPayload,
+                                        showSources, autoScrollTop)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `,
         [
           bot.botName,
@@ -208,7 +222,9 @@ export class BotEmbed extends MySQLController {
           bot.personalizationPayload === undefined ||
           bot.personalizationPayload === null
             ? null
-            : JSON.stringify(bot.personalizationPayload)
+            : JSON.stringify(bot.personalizationPayload),
+          bot.showSources === false ? 0 : 1,
+          bot.autoScrollTop === false ? 0 : 1
         ],
         async (err: Error | null, res?: ResultSetHeader) => {
           if (err || !res) {
@@ -252,7 +268,9 @@ export class BotEmbed extends MySQLController {
                   botContact=?,
                   publish=?,
                   developerMode=?,
-                  personalizationPayload=?
+                  personalizationPayload=?,
+                  showSources=?,
+                  autoScrollTop=?
               WHERE botName = ?
           `,
         [
@@ -304,6 +322,8 @@ export class BotEmbed extends MySQLController {
           bot.personalizationPayload === null
             ? null
             : JSON.stringify(bot.personalizationPayload),
+          bot.showSources === false ? 0 : 1,
+          bot.autoScrollTop === false ? 0 : 1,
 
           // Identifier
           bot.botName

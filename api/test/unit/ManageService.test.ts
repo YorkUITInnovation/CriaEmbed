@@ -458,6 +458,39 @@ describe("ManageService", () => {
       );
     });
 
+    it("persists showSources/autoScrollTop from a Criabot config push", async () => {
+      jest
+        .spyOn(manageService, "botExistsAndIsAuthorized")
+        .mockResolvedValueOnce(true);
+      db.retrieveByName.mockResolvedValueOnce({
+        id: 3,
+        botName: "bot",
+        botTitle: "Kept Title"
+      });
+      db.update.mockResolvedValueOnce({
+        id: 3,
+        botName: "bot",
+        showSources: false,
+        autoScrollTop: true
+      });
+
+      const result = await manageService.updateBot(
+        { botName: "bot", showSources: false, autoScrollTop: true },
+        "testApiKey"
+      );
+
+      expect(db.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          botName: "bot",
+          botTitle: "Kept Title",
+          showSources: false,
+          autoScrollTop: true
+        })
+      );
+      expect(result.showSources).toBe(false);
+      expect(result.autoScrollTop).toBe(true);
+    });
+
     it("throws EmbedNotFoundError when update returns no config", async () => {
       jest
         .spyOn(manageService, "botExistsAndIsAuthorized")

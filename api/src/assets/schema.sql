@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS `EmbedBot` (
     `integrationsNoContextReply` TINYINT,
     `integrationsFirstEmailOnly` TINYINT,
     `integrationsWhitelistFilter` VARCHAR(256),
+    -- Bot-owner display settings; default on.
+    `showSources` TINYINT(1) NOT NULL DEFAULT 1,
+    `autoScrollTop` TINYINT(1) NOT NULL DEFAULT 1,
 
     # Microsoft App ID
     `microsoftAppId` VARCHAR(128) UNIQUE,
@@ -54,7 +57,8 @@ CREATE TABLE IF NOT EXISTS `EmbedUsageLog` (
 
     INDEX(`bot_id`),
     INDEX(`userid`),
-    INDEX(`timecreated`)
+    INDEX(`timecreated`),
+    INDEX `idx_bot_timecreated`(`bot_id`, `timecreated`)
 );
 
 
@@ -93,3 +97,38 @@ SET @personalization_payload_sql = IF(@personalization_payload_exists = 0,
 PREPARE personalization_payload_stmt FROM @personalization_payload_sql;
 EXECUTE personalization_payload_stmt;
 DEALLOCATE PREPARE personalization_payload_stmt;
+
+SET @show_sources_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'EmbedBot' AND COLUMN_NAME = 'showSources'
+);
+SET @show_sources_sql = IF(@show_sources_exists = 0,
+    'ALTER TABLE `EmbedBot` ADD COLUMN `showSources` TINYINT(1) NOT NULL DEFAULT 1',
+    'SELECT 1');
+PREPARE show_sources_stmt FROM @show_sources_sql;
+EXECUTE show_sources_stmt;
+DEALLOCATE PREPARE show_sources_stmt;
+
+SET @auto_scroll_top_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'EmbedBot' AND COLUMN_NAME = 'autoScrollTop'
+);
+SET @auto_scroll_top_sql = IF(@auto_scroll_top_exists = 0,
+    'ALTER TABLE `EmbedBot` ADD COLUMN `autoScrollTop` TINYINT(1) NOT NULL DEFAULT 1',
+    'SELECT 1');
+PREPARE auto_scroll_top_stmt FROM @auto_scroll_top_sql;
+EXECUTE auto_scroll_top_stmt;
+DEALLOCATE PREPARE auto_scroll_top_stmt;
+
+-- Composite index for per-bot time-ordered usage-log reads and retention purges.
+-- MySQL has no CREATE INDEX IF NOT EXISTS, so guard via INFORMATION_SCHEMA.STATISTICS.
+SET @usage_log_bot_time_idx_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'EmbedUsageLog' AND INDEX_NAME = 'idx_bot_timecreated'
+);
+SET @usage_log_bot_time_idx_sql = IF(@usage_log_bot_time_idx_exists = 0,
+    'ALTER TABLE `EmbedUsageLog` ADD INDEX `idx_bot_timecreated` (`bot_id`, `timecreated`)',
+    'SELECT 1');
+PREPARE usage_log_bot_time_idx_stmt FROM @usage_log_bot_time_idx_sql;
+EXECUTE usage_log_bot_time_idx_stmt;
+DEALLOCATE PREPARE usage_log_bot_time_idx_stmt;

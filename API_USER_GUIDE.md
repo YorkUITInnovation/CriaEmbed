@@ -38,7 +38,7 @@ https://your-api-domain.com/
 ## 1. Authentication
 
 • **X-Api-Key** (header) is required for all `/manage/*` endpoints, `POST /embed/{botId}/load`, and `POST /embed/{botId}/load/embedding/{upsert,search}`.
-• **X-Internal-Token** is required for `GET /internal/usage-logs` (must match `EMBED_INTERNAL_TOKEN`; used by Criabot, not the widget).
+• **X-Internal-Token** is required for `GET`/`POST /internal/usage-logs` (must match `EMBED_INTERNAL_TOKEN`; used by Criabot, not the widget).
 • Criabot→CriaEmbed config pushes send `X-Internal-Service: criabot` so publish sync does not bounce back.
 • Other endpoints are public but subject to rate limits.
 
@@ -501,6 +501,28 @@ curl "https://api.example.com/internal/usage-logs?bot_name=myBot&page=1&limit=50
 ```
 
 Optional filters: `bot_id`, `bot_name`, `userid`, `timecreated_from`, `timecreated_to`.
+
+### Write a Usage Log Row
+
+POST /internal/usage-logs
+
+Criabot writes every non-embed chat (and failures) here so one store covers all
+bot traffic; embed-originated chats are logged by the Embed API itself. Body
+requires `bot_name` plus optional usage fields (`userid`, `prompt`, `message`,
+`group_responses`, `confidence`, `prompt_tokens`, `completion_tokens`,
+`total_tokens`, `cost`, `ip`, `request_payload`, `response_payload`, `other`).
+Failure rows carry `other.status: "error"` (`"ok"` otherwise).
+
+```
+curl -X POST "https://api.example.com/internal/usage-logs" \
+  -H "X-Internal-Token: YOUR_INTERNAL_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"bot_name": "myBot", "prompt": "...", "message": "...", "other": {"status": "ok"}}'
+```
+
+Returns `200 {id}`; `400 INVALID` (missing `bot_name`), `401 UNAUTHORIZED`,
+`404 NOT_FOUND` (unknown bot), `500` on insert failure. Rows older than
+`EMBED_USAGE_LOG_RETENTION_DAYS` (default 30) are purged — see `api/README.md`.
 
 ---
 

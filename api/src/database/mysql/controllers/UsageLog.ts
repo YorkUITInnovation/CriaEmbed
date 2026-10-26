@@ -74,6 +74,25 @@ export class UsageLog extends MySQLController {
     });
   }
 
+  /**
+   * Delete up to `limit` rows older than `cutoffSeconds` (epoch seconds).
+   * Resolves with the number of deleted rows; callers batch by re-invoking
+   * until fewer than `limit` rows are deleted.
+   */
+  deleteOlderThan(cutoffSeconds: number, limit: number): Promise<number> {
+    const safeLimit = Math.max(1, Math.floor(limit));
+    return new Promise((resolve, reject) => {
+      this.pool.query<ResultSetHeader>(
+        "DELETE FROM `EmbedUsageLog` WHERE timecreated < ? LIMIT ?",
+        [cutoffSeconds, safeLimit],
+        (err: Error | null, res?: ResultSetHeader) => {
+          if (err || !res) reject(err);
+          else resolve(res.affectedRows);
+        }
+      );
+    });
+  }
+
   private buildWhere(filters: IEmbedUsageLogFilters): {
     clause: string;
     params: any[];

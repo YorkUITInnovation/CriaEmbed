@@ -1,4 +1,13 @@
-import { Body, Middlewares, Path, Post, Request, Route, Tags } from "tsoa";
+import {
+  Body,
+  Header,
+  Middlewares,
+  Path,
+  Post,
+  Request,
+  Route,
+  Tags
+} from "tsoa";
 import { Readable } from "stream";
 import { EmbedNotFoundError } from "../../services/ManageService.js";
 import { BaseController } from "../../models/BaseController.js";
@@ -33,7 +42,8 @@ export class EmbedChatController extends BaseController {
   public async send(
     @Path() botId: string,
     @Body() config: ChatPayload,
-    @Request() request: e.Request
+    @Request() request: e.Request,
+    @Header("X-Cria-Identity") criaIdentity?: string
   ): Promise<SendChatResponse> {
     // Basic input validation to avoid malformed or abusive requests
     if (!botId || botId.trim().length === 0) {
@@ -57,12 +67,14 @@ export class EmbedChatController extends BaseController {
     }
 
     try {
+      // X-Cria-Identity is forwarded opaquely: never parsed or verified here.
       const chat: SendChatResponse = await this.service.sendEmbedChat(
         botId,
         config.chatId,
         prompt,
         false,
-        request.ip ?? null
+        request.ip ?? null,
+        criaIdentity ?? null
       );
       this.setStatus(200);
       return chat;
@@ -120,7 +132,8 @@ export class EmbedStreamController extends BaseController {
   public async stream(
     @Path() botId: string,
     @Body() config: ChatPayload,
-    @Request() request: e.Request
+    @Request() request: e.Request,
+    @Header("X-Cria-Identity") criaIdentity?: string
   ): Promise<Readable | CriaResponse> {
     if (!botId || botId.trim().length === 0) {
       throw new CriaError("Invalid botId provided.");
@@ -165,6 +178,8 @@ export class EmbedStreamController extends BaseController {
         config.stream_version,
         {
           clientIp: request?.ip ?? null,
+          // X-Cria-Identity is forwarded opaquely: never parsed or verified here.
+          criaIdentity: criaIdentity ?? null,
           // Browser disconnect -> cancel upstream work in Criabot/Criadex.
           registerCancel: cancel => {
             upstreamCancel = cancel;

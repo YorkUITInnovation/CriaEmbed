@@ -12,6 +12,8 @@ jest.mock("tsoa", () => {
   return {
     Controller: MockController,
     Get: decorator,
+    Post: decorator,
+    Body: decorator,
     Header: decorator,
     Query: decorator,
     Route: decorator,
@@ -23,11 +25,11 @@ import { UsageLogController } from "../../src/controllers/internal/UsageLogContr
 import { Config } from "../../src/config";
 
 describe("UsageLogController", () => {
-  let service: { listUsageLogs: jest.Mock };
+  let service: { listUsageLogs: jest.Mock; createUsageLog: jest.Mock };
   let controller: UsageLogController;
 
   beforeEach(() => {
-    service = { listUsageLogs: jest.fn() };
+    service = { listUsageLogs: jest.fn(), createUsageLog: jest.fn() };
     controller = new UsageLogController(service as any);
   });
 
@@ -107,5 +109,74 @@ describe("UsageLogController", () => {
 
     expect(result.status).toBe(500);
     expect(result.code).toBe("ERROR");
+  });
+
+  describe("create", () => {
+    const body = {
+      bot_name: "mock-bot",
+      prompt: "hi",
+      message: "hello",
+      prompt_tokens: 3,
+      completion_tokens: 5,
+      total_tokens: 8,
+      other: { status: "ok" }
+    };
+
+    it("rejects requests without a valid internal token", async () => {
+      const result = await controller.create("wrong-token", body as any);
+
+      expect(result.status).toBe(401);
+      expect(result.code).toBe("UNAUTHORIZED");
+      expect(service.createUsageLog).not.toHaveBeenCalled();
+    });
+
+    it("rejects a body without bot_name", async () => {
+      const result = await controller.create(
+        Config.EMBED_INTERNAL_TOKEN,
+        {} as any
+      );
+
+      expect(result.status).toBe(400);
+      expect(result.code).toBe("INVALID");
+      expect(service.createUsageLog).not.toHaveBeenCalled();
+    });
+
+    it("returns 404 when the bot name does not resolve", async () => {
+      service.createUsageLog.mockResolvedValueOnce(null);
+
+      const result = await controller.create(
+        Config.EMBED_INTERNAL_TOKEN,
+        body as any
+      );
+
+      expect(result.status).toBe(404);
+      expect(result.code).toBe("NOT_FOUND");
+    });
+
+    it("returns the new row id on success", async () => {
+      service.createUsageLog.mockResolvedValueOnce(42);
+
+      const result = await controller.create(
+        Config.EMBED_INTERNAL_TOKEN,
+        body as any
+      );
+
+      expect(service.createUsageLog).toHaveBeenCalledWith(body);
+      expect(result.status).toBe(200);
+      expect(result.code).toBe("SUCCESS");
+      expect(result.id).toBe(42);
+    });
+
+    it("returns a 500 envelope when the insert fails", async () => {
+      service.createUsageLog.mockRejectedValueOnce(new Error("db down"));
+
+      const result = await controller.create(
+        Config.EMBED_INTERNAL_TOKEN,
+        body as any
+      );
+
+      expect(result.status).toBe(500);
+      expect(result.code).toBe("ERROR");
+    });
   });
 });

@@ -71,6 +71,10 @@ export type EmbedPublicConfig = {
   initialPrompts?: CriabotChatResponseRelatedPrompt[] | null;
   botTrustWarning?: string | null;
   botContact?: string | null;
+  /** Bot-owner display setting: show source citations. Defaults true. */
+  showSources: boolean;
+  /** Bot-owner display setting: auto-scroll to top of latest reply. Defaults true. */
+  autoScrollTop: boolean;
 };
 
 type CriaGetGPTResponseFunctionParams = {
@@ -236,6 +240,23 @@ function normalizeReplyHtmlLinks(html: string | null): string | null {
   return root.toString();
 }
 
+export interface UsageLogCreateBody {
+  bot_name: string;
+  userid?: number | null;
+  prompt?: string | null;
+  message?: string | null;
+  group_responses?: Record<string, any> | null;
+  confidence?: number | null;
+  prompt_tokens?: number | null;
+  completion_tokens?: number | null;
+  total_tokens?: number | null;
+  cost?: number | null;
+  ip?: string | null;
+  request_payload?: unknown;
+  response_payload?: unknown;
+  other?: Record<string, any> | null;
+}
+
 export class EmbedService extends BaseService {
   async createChat(): Promise<string> {
     return randomUUID();
@@ -261,6 +282,53 @@ export class EmbedService extends BaseService {
     }
 
     return this.usageLog.find(resolvedFilters, page, limit);
+  }
+
+  /**
+   * Insert a usage-log row on behalf of Criabot (which logs every non-embed
+   * chat, including failures). Returns the new row id, or null when the bot
+   * name does not resolve to an embed bot. DB errors propagate to the caller.
+   */
+  async createUsageLog(body: UsageLogCreateBody): Promise<number | null> {
+    let botId: number | null;
+    try {
+      const botConfig = await this.manageService.retrieveBot(
+        body.bot_name,
+        "",
+        true
+      );
+      botId = botConfig.id ?? null;
+    } catch (error: any) {
+      if (error instanceof EmbedNotFoundError) {
+        return null;
+      }
+      throw error;
+    }
+    if (botId === null) {
+      return null;
+    }
+
+    return this.usageLog.insert({
+      bot_id: botId,
+      userid: body.userid ?? null,
+      prompt: body.prompt ?? null,
+      message: body.message ?? null,
+      index_context: body.group_responses
+        ? JSON.stringify(body.group_responses)
+        : null,
+      confidence: body.confidence ?? null,
+      prompt_tokens: body.prompt_tokens ?? null,
+      completion_tokens: body.completion_tokens ?? null,
+      total_tokens: body.total_tokens ?? null,
+      cost: body.cost ?? null,
+      payload: JSON.stringify({
+        request: body.request_payload ?? null,
+        response: body.response_payload ?? null
+      }),
+      ip: body.ip ?? null,
+      other: body.other ? JSON.stringify(body.other) : null,
+      timecreated: Math.floor(Date.now() / 1000)
+    });
   }
 
   private async ensureGreetingMessage(
@@ -311,7 +379,8 @@ export class EmbedService extends BaseService {
     chatId: string,
     prompt: string,
     history: any[],
-    clientIp: string | null = null
+    clientIp: string | null = null,
+    criaIdentity: string | null = null
   ): Promise<CriaGetGPTResponseFunctionResponse> {
     const { botConfig, criabotPrompt, personalization, mappedChatId } =
       await this.prepareCriabotChat(botName, chatId, prompt);
@@ -327,7 +396,8 @@ export class EmbedService extends BaseService {
           criabotChatId,
           canonicalBotName,
           criabotPrompt,
-          personalization
+          personalization,
+          criaIdentity
         )
       );
 
@@ -340,7 +410,8 @@ export class EmbedService extends BaseService {
           criabotChatId,
           canonicalBotName,
           criabotPrompt,
-          personalization
+          personalization,
+          criaIdentity
         );
       }
 
@@ -538,7 +609,8 @@ export class EmbedService extends BaseService {
     criabotChatId: string,
     canonicalBotName: string,
     prompt: string,
-    systemEphemeralPayload?: string
+    systemEphemeralPayload?: string,
+    criaIdentity?: string | null
   ): Promise<AxiosResponse> {
     const chatUrl = `${
       Config.CRIA_BOT_SERVER_URL
@@ -551,7 +623,14 @@ export class EmbedService extends BaseService {
       body.system_ephemeral_payload = systemEphemeralPayload;
     }
     return this.post(chatUrl, body, {
-      headers: { "x-api-key": Config.CRIA_BOT_SERVER_TOKEN },
+      headers: {
+        "x-api-key": Config.CRIA_BOT_SERVER_TOKEN,
+        // Embed logs this interaction itself; criabot skips its own usage
+        // logging when this marker is present so chats are never double-logged.
+        "X-Cria-Usage-Source": "criaembed",
+        // Opaque pass-through of the caller's identity token, when present.
+        ...(criaIdentity ? { "X-Cria-Identity": criaIdentity } : {})
+      },
       timeout: Config.CRIA_BOT_CHAT_TIMEOUT_MS,
       validateStatus: status => status < 500
     });
@@ -762,7 +841,9 @@ export class EmbedService extends BaseService {
       botLocale: botConfig.botLocale || "en-US",
       initialPrompts: botConfig.initialPrompts,
       botTrustWarning: botConfig.botTrustWarning || null,
-      botContact: botConfig.botContact == null ? null : botConfig.botContact
+      botContact: botConfig.botContact == null ? null : botConfig.botContact,
+      showSources: botConfig.showSources !== false,
+      autoScrollTop: botConfig.autoScrollTop !== false
     };
 
     if (config.embedTheme && !config.embedTheme.startsWith("#")) {
@@ -904,7 +985,8 @@ export class EmbedService extends BaseService {
     chatId: string,
     prompt: string,
     fullResponse: boolean = false,
-    clientIp: string | null = null
+    clientIp: string | null = null,
+    criaIdentity: string | null = null
   ): Promise<SendChatResponse | ExtendedSendChatResponse> {
     const history = [{ role: "user", content: prompt }];
     const apiResponse: CriaGetGPTResponseFunctionResponse = await this.sendChat(
@@ -912,7 +994,8 @@ export class EmbedService extends BaseService {
       chatId,
       prompt,
       history,
-      clientIp
+      clientIp,
+      criaIdentity
     );
     const criaBotResponse = apiResponse.criabot_response;
 
@@ -1109,7 +1192,10 @@ export class EmbedService extends BaseService {
     });
     // Own errors before handing the stream to the controller or HTTP consumer.
     tap.on("error", (error: Error) => {
-      console.error("[EmbedService] Criabot stream interrupted:", error.message);
+      console.error(
+        "[EmbedService] Criabot stream interrupted:",
+        error.message
+      );
     });
     upstream.on("error", err => tap.destroy(err));
     return tap;
@@ -1121,7 +1207,8 @@ export class EmbedService extends BaseService {
     prompt: string,
     systemEphemeralPayload?: string,
     streamVersion?: number,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    criaIdentity?: string | null
   ): Promise<AxiosResponse> {
     const chatUrl = `${
       Config.CRIA_BOT_SERVER_URL
@@ -1143,7 +1230,12 @@ export class EmbedService extends BaseService {
     return this.post(chatUrl, body, {
       headers: {
         "x-api-key": Config.CRIA_BOT_SERVER_TOKEN,
-        Accept: "text/event-stream"
+        Accept: "text/event-stream",
+        // Embed logs this interaction itself; criabot skips its own usage
+        // logging when this marker is present so chats are never double-logged.
+        "X-Cria-Usage-Source": "criaembed",
+        // Opaque pass-through of the caller's identity token, when present.
+        ...(criaIdentity ? { "X-Cria-Identity": criaIdentity } : {})
       },
       responseType: "stream",
       timeout: Config.CRIA_BOT_CHAT_TIMEOUT_MS,
@@ -1159,6 +1251,7 @@ export class EmbedService extends BaseService {
     streamVersion?: number,
     hooks?: {
       clientIp?: string | null;
+      criaIdentity?: string | null;
       registerCancel?: (cancel: () => void) => void;
     }
   ): Promise<AxiosResponse> {
@@ -1198,7 +1291,8 @@ export class EmbedService extends BaseService {
           criabotPrompt,
           personalization,
           streamVersion,
-          abortController.signal
+          abortController.signal,
+          hooks?.criaIdentity
         )
       );
 
@@ -1218,7 +1312,8 @@ export class EmbedService extends BaseService {
           criabotPrompt,
           personalization,
           streamVersion,
-          abortController.signal
+          abortController.signal,
+          hooks?.criaIdentity
         );
       }
 

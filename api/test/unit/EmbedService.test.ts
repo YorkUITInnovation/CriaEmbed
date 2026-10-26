@@ -1,4 +1,5 @@
 import { EmbedService } from "../../src/services/EmbedService";
+import { EmbedNotFoundError } from "../../src/services/ManageService";
 import { Config } from "../../src/config";
 import { VectorStoreService } from "../../src/services/VectorStoreService"; // Import for typing the mock
 import { buildEmbedCriabotPrompt } from "../../src/services/embedPrompt";
@@ -480,6 +481,37 @@ describe("EmbedService", () => {
 
       expect(mockMessageCache.set).not.toHaveBeenCalled();
     });
+
+    it("returns showSources/autoScrollTop and defaults them to true when absent", async () => {
+      const config = await embedService.retrieveEmbedConfig(
+        "chat-1",
+        "mock-bot"
+      );
+
+      expect(config.showSources).toBe(true);
+      expect(config.autoScrollTop).toBe(true);
+    });
+
+    it("serves the persisted showSources/autoScrollTop values when set", async () => {
+      mockManageService.retrieveBot.mockResolvedValueOnce({
+        botName: "mock-bot",
+        publish: true,
+        botTitle: "Test Bot",
+        botGreeting: "Hi there!",
+        botLocale: "en-US",
+        botEmbedPosition: 1,
+        showSources: false,
+        autoScrollTop: false
+      });
+
+      const config = await embedService.retrieveEmbedConfig(
+        "chat-1",
+        "mock-bot"
+      );
+
+      expect(config.showSources).toBe(false);
+      expect(config.autoScrollTop).toBe(false);
+    });
   });
 
   describe("existsEmbedChat", () => {
@@ -569,7 +601,10 @@ describe("EmbedService", () => {
           prompt: enrichedPrompt
         },
         expect.objectContaining({
-          headers: { "x-api-key": Config.CRIA_BOT_SERVER_TOKEN },
+          headers: {
+            "x-api-key": Config.CRIA_BOT_SERVER_TOKEN,
+            "X-Cria-Usage-Source": "criaembed"
+          },
           timeout: Config.CRIA_BOT_CHAT_TIMEOUT_MS
         })
       );
@@ -736,7 +771,10 @@ describe("EmbedService", () => {
           prompt: "q: hello again"
         },
         expect.objectContaining({
-          headers: { "x-api-key": Config.CRIA_BOT_SERVER_TOKEN }
+          headers: {
+            "x-api-key": Config.CRIA_BOT_SERVER_TOKEN,
+            "X-Cria-Usage-Source": "criaembed"
+          }
         })
       );
 
@@ -969,20 +1007,98 @@ describe("EmbedService", () => {
     });
   });
 
+  describe("createUsageLog", () => {
+    const body = {
+      bot_name: "mock-bot",
+      prompt: "hi",
+      message: "hello",
+      group_responses: { faq: [] },
+      prompt_tokens: 3,
+      completion_tokens: 5,
+      total_tokens: 8,
+      cost: 0.001,
+      ip: "203.0.113.10",
+      request_payload: { bot_name: "mock-bot", chat_id: "c1", prompt: "hi" },
+      response_payload: { code: "SUCCESS" },
+      other: { status: "ok" }
+    };
+
+    it("resolves bot_name and inserts a mapped row", async () => {
+      mockManageService.retrieveBot.mockResolvedValueOnce({
+        id: 42,
+        botName: "mock-bot"
+      });
+      mockUsageLog.insert.mockResolvedValueOnce(7);
+
+      const id = await embedService.createUsageLog(body as any);
+
+      expect(mockManageService.retrieveBot).toHaveBeenCalledWith(
+        "mock-bot",
+        "",
+        true
+      );
+      const row = mockUsageLog.insert.mock.calls[0][0];
+      expect(row.bot_id).toBe(42);
+      expect(row.prompt).toBe("hi");
+      expect(row.message).toBe("hello");
+      expect(row.index_context).toBe(JSON.stringify({ faq: [] }));
+      expect(row.payload).toBe(
+        JSON.stringify({
+          request: { bot_name: "mock-bot", chat_id: "c1", prompt: "hi" },
+          response: { code: "SUCCESS" }
+        })
+      );
+      expect(row.other).toBe(JSON.stringify({ status: "ok" }));
+      expect(row.total_tokens).toBe(8);
+      expect(typeof row.timecreated).toBe("number");
+      expect(id).toBe(7);
+    });
+
+    it("returns null when the bot name does not resolve", async () => {
+      mockManageService.retrieveBot.mockRejectedValueOnce(
+        new EmbedNotFoundError("Bot not found.")
+      );
+
+      const id = await embedService.createUsageLog(body as any);
+
+      expect(id).toBeNull();
+      expect(mockUsageLog.insert).not.toHaveBeenCalled();
+    });
+
+    it("propagates non-not-found resolution errors", async () => {
+      mockManageService.retrieveBot.mockRejectedValueOnce(new Error("db down"));
+
+      await expect(embedService.createUsageLog(body as any)).rejects.toThrow(
+        "db down"
+      );
+      expect(mockUsageLog.insert).not.toHaveBeenCalled();
+    });
+  });
+
   describe("streamEmbedChat", () => {
     it("owns an upstream reset before any downstream error listener attaches", async () => {
       const upstream = new PassThrough();
-      mockedAxios.post.mockResolvedValueOnce({ status: 200, data: upstream } as any);
+      mockedAxios.post.mockResolvedValueOnce({
+        status: 200,
+        data: upstream
+      } as any);
       const log = jest.spyOn(console, "error").mockImplementation(() => {});
       try {
-        const response = await embedService.streamEmbedChat("mock-bot", "chat-reset", "hello");
-        upstream.destroy(Object.assign(new Error("aborted"), { code: "ECONNRESET" }));
+        const response = await embedService.streamEmbedChat(
+          "mock-bot",
+          "chat-reset",
+          "hello"
+        );
+        upstream.destroy(
+          Object.assign(new Error("aborted"), { code: "ECONNRESET" })
+        );
         await new Promise(resolve => setImmediate(resolve));
         await new Promise(resolve => setImmediate(resolve));
         expect(response.data.destroyed).toBe(true);
         expect(response.data.errored).toMatchObject({ code: "ECONNRESET" });
         expect(log).toHaveBeenCalledWith(
-          "[EmbedService] Criabot stream interrupted:", "aborted"
+          "[EmbedService] Criabot stream interrupted:",
+          "aborted"
         );
         expect(mockUsageLog.insert).not.toHaveBeenCalled();
       } finally {
@@ -1083,7 +1199,8 @@ describe("EmbedService", () => {
         expect.objectContaining({
           headers: {
             "x-api-key": Config.CRIA_BOT_SERVER_TOKEN,
-            Accept: "text/event-stream"
+            Accept: "text/event-stream",
+            "X-Cria-Usage-Source": "criaembed"
           },
           responseType: "stream",
           timeout: Config.CRIA_BOT_CHAT_TIMEOUT_MS
@@ -1485,6 +1602,119 @@ describe("EmbedService", () => {
         },
         expect.any(Object)
       );
+    });
+  });
+
+  describe("X-Cria-Identity forwarding", () => {
+    const identityToken =
+      "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzdHVkZW50LTEyMyJ9.signature";
+
+    it("forwards the identity header verbatim on the blocking send", async () => {
+      mockedAxios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          status: 200,
+          code: "SUCCESS",
+          message: "ok",
+          reply: {
+            content: { content: "ok" },
+            verified_response: false,
+            related_prompts: [],
+            context: null
+          }
+        }
+      } as any);
+
+      await embedService.sendEmbedChat(
+        "mock-bot",
+        "chat-1",
+        "hello",
+        false,
+        null,
+        identityToken
+      );
+
+      expect(mockedAxios.post).toHaveBeenCalledWith(
+        `${Config.CRIA_BOT_SERVER_URL}/bots/chats/chat-1/send`,
+        expect.any(Object),
+        expect.objectContaining({
+          headers: {
+            "x-api-key": Config.CRIA_BOT_SERVER_TOKEN,
+            "X-Cria-Usage-Source": "criaembed",
+            "X-Cria-Identity": identityToken
+          }
+        })
+      );
+    });
+
+    it("omits the identity header on the blocking send when absent", async () => {
+      mockedAxios.post.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          status: 200,
+          code: "SUCCESS",
+          message: "ok",
+          reply: {
+            content: { content: "ok" },
+            verified_response: false,
+            related_prompts: [],
+            context: null
+          }
+        }
+      } as any);
+
+      await embedService.sendEmbedChat("mock-bot", "chat-1", "hello");
+
+      const headers = mockedAxios.post.mock.calls[0][2]?.headers;
+      expect(headers).toMatchObject({
+        "X-Cria-Usage-Source": "criaembed"
+      });
+      expect(headers).not.toHaveProperty("X-Cria-Identity");
+    });
+
+    it("forwards the identity header verbatim on the stream", async () => {
+      const upstream = { pipe: jest.fn() };
+      mockedAxios.post.mockResolvedValueOnce({
+        status: 200,
+        data: upstream
+      } as any);
+
+      await embedService.streamEmbedChat(
+        "mock-bot",
+        "chat-1",
+        "hello",
+        undefined,
+        { criaIdentity: identityToken }
+      );
+
+      expect(mockedAxios.post).toHaveBeenCalledWith(
+        `${Config.CRIA_BOT_SERVER_URL}/bots/chats/chat-1/stream`,
+        expect.any(Object),
+        expect.objectContaining({
+          headers: {
+            "x-api-key": Config.CRIA_BOT_SERVER_TOKEN,
+            Accept: "text/event-stream",
+            "X-Cria-Usage-Source": "criaembed",
+            "X-Cria-Identity": identityToken
+          }
+        })
+      );
+    });
+
+    it("omits the identity header on the stream when absent", async () => {
+      const upstream = { pipe: jest.fn() };
+      mockedAxios.post.mockResolvedValueOnce({
+        status: 200,
+        data: upstream
+      } as any);
+
+      await embedService.streamEmbedChat("mock-bot", "chat-1", "hello");
+
+      const headers = mockedAxios.post.mock.calls[0][2]?.headers;
+      expect(headers).toMatchObject({
+        "X-Cria-Usage-Source": "criaembed"
+      });
+      expect(headers).not.toHaveProperty("X-Cria-Identity");
     });
   });
 });

@@ -5,6 +5,8 @@ import QueryBox from "./components/query/QueryBox.jsx";
 import ChatHeader from "./components/chat/ChatHeader.jsx";
 import PrintDebug from "./components/PrintDebug.jsx";
 import { observeViewport } from "./utils/viewport.js";
+import { ShowSourcesContext } from "./components/chat/showSourcesContext.js";
+import { readAutoScrollTop, readShowSources } from "./utils/showSources.js";
 
 const Container = styled.div`
   margin: auto;
@@ -147,13 +149,19 @@ export default class Home extends Component {
 
     if (!this.state.configLoaded) return null;
 
+    // Bot-owner flags arrive with the embed config (window.Cria).
+    const showSources = readShowSources(window.Cria);
+    const autoScrollTop = readAutoScrollTop(window.Cria);
+
     return (
-      <Container>
-        <PrintDebug />
-        <ChatHeader />
-        <ChatList />
-        {!this.state.chatExpired ? <QueryBox /> : null}
-      </Container>
+      <ShowSourcesContext.Provider value={showSources}>
+        <Container>
+          <PrintDebug />
+          <ChatHeader />
+          <ChatList autoScrollTop={autoScrollTop} />
+          {!this.state.chatExpired ? <QueryBox /> : null}
+        </Container>
+      </ShowSourcesContext.Provider>
     );
   }
 }

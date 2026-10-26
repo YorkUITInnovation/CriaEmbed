@@ -50,6 +50,9 @@ type Config = {
   // usage-log retrieval gateway) - distinct from CRIA_BOT_SERVER_TOKEN, which
   // authenticates CriaEmbed's OUTBOUND calls to Criabot.
   EMBED_INTERNAL_TOKEN: string;
+  // Days to keep EmbedUsageLog rows before the purge job deletes them.
+  // 0 or negative disables the purge job.
+  EMBED_USAGE_LOG_RETENTION_DAYS: number;
   THIS_APP_URL: string;
   ASSETS_FOLDER_PATH: string;
   DEFAULT_BOT_GREETING: string;
@@ -92,6 +95,16 @@ export function chatBudget(value: string | undefined): number {
   return parsed;
 }
 
+export function usageLogRetentionDays(value: string | undefined): number {
+  if (value === undefined) return 30;
+  if (!/^-?\d+$/.test(value) || !Number.isSafeInteger(Number(value))) {
+    throw new Error(
+      "EMBED_USAGE_LOG_RETENTION_DAYS must be an integer (0 or negative disables the purge job)"
+    );
+  }
+  return Number(value);
+}
+
 function processConfig(config: Config): Config {
   const redisDb = redisDatabase(process.env.REDIS_DB, "REDIS_DB");
   const rateLimitRedisDb = redisDatabase(
@@ -122,7 +135,10 @@ function processConfig(config: Config): Config {
     ...config,
     REDIS_DB: redisDb,
     RATE_LIMIT_REDIS_DB: rateLimitRedisDb,
-    CRIA_BOT_CHAT_TIMEOUT_MS: chatTimeoutMs
+    CRIA_BOT_CHAT_TIMEOUT_MS: chatTimeoutMs,
+    EMBED_USAGE_LOG_RETENTION_DAYS: usageLogRetentionDays(
+      process.env.EMBED_USAGE_LOG_RETENTION_DAYS
+    )
   };
 }
 

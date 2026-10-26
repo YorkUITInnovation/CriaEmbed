@@ -44,6 +44,11 @@ CRIA_BOT_SERVER_TOKEN=<your_criabot_server_token>
 # Shared secret for Criabot→CriaEmbed internal calls (usage-log gateway).
 # Must match Criabot's CRIAEMBED_INTERNAL_TOKEN.
 EMBED_INTERNAL_TOKEN=<shared-internal-token>
+
+# --- Usage-Log Retention (optional)
+# Days to keep EmbedUsageLog rows before the startup purge job deletes them
+# (batched deletes, runs daily). Default: 30. Set to 0 or negative to disable.
+EMBED_USAGE_LOG_RETENTION_DAYS=30
 AZURE_SPEECH_API_KEY=<your_azure_speech_api_key>
 
 # --- Application Settings

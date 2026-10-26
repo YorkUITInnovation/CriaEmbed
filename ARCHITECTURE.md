@@ -61,14 +61,14 @@ flowchart LR
   - `embed/` — load, config, send, stream, session_data, speech, popup/inline assets, vector store
   - `manage/` — insert / config get+patch / delete / diagnose
   - `integrations/` — Azure Bot webhook
-  - `internal/` — `GET /internal/usage-logs` (Criabot gateway; `X-Internal-Token`)
+  - `internal/` — `GET`/`POST /internal/usage-logs` (Criabot gateway; `X-Internal-Token`)
 - **Services**:
   - `EmbedService.ts` — load/session/chat; publish gate (`publish === true` or matching `developerMode` + `dev-key`); personalization → Criabot `system_ephemeral_payload`
   - `personalizationPayload.ts` — extract payload + resolve `[variableName]` templates
   - `ManageService.ts` — embed config CRUD; **bidirectional publish sync** to Criabot `/manage/publish` when `publish`/`developerMode` change (skipped when `X-Internal-Service: criabot`)
   - `SpeechService.ts`, `AzureService.ts`, `embedPrompt.ts`, `VectorStoreService.ts`
 - **Database**:
-  - MySQL: `BotEmbed` (includes `publish`, `developerMode`, `personalizationPayload`, `botIconUrl`, `initialPrompts`), `InitialPrompts`, `EmbedUsageLog`
+  - MySQL: `BotEmbed` (includes `publish`, `developerMode`, `personalizationPayload`, `botIconUrl`, `initialPrompts`), `InitialPrompts`, `EmbedUsageLog` (composite `idx_bot_timecreated (bot_id, timecreated)`; retention purge via `EMBED_USAGE_LOG_RETENTION_DAYS`, see `api/README.md`)
   - Redis: `AudioCache`, `MessageCache`, session/tracking data
 - **Config**: `EMBED_INTERNAL_TOKEN` (inbound S2S), `CRIA_BOT_SERVER_TOKEN` / `CRIA_BOT_SERVER_URL` (outbound to Criabot)
 
@@ -88,6 +88,13 @@ flowchart LR
   sources that survived reranking into the model's context, so an "I couldn't find anything" reply
   legitimately carries zero sources — `sourceCount` must come from `citations.length`, never from
   a retrieval count.
+- **Chat settings menu**: `ChatHeader.jsx` hosts a settings gear button (`ChatSettingsMenu.jsx`)
+  with a popover of two independent per-bot switches, both default on: "Show sources"
+  (`localStorage` key `cria:showSources:<botName>`) and "Scroll to new response"
+  (`cria:autoScrollTop:<botName>`). A `ShowSourcesContext` gate in `StreamingChatBubble.jsx`
+  hides/shows `SourceCitations` on all messages live. The auto-scroll setting alone controls
+  whether completed responses anchor to the response top (same anchor path as the
+  "Response ready" chip); when off, scroll behavior is unchanged.
 - **Config**: `src/config.js` (API base URLs, `dev-key` support for unpublished bots)
 - **Build**: Vite (`vite.config.js`); Docker via `app/Dockerfile`
 
@@ -157,4 +164,4 @@ Publish sync (MARS / manage API → Criabot): `PATCH /manage/{botId}/config` wit
 
 ---
 
-_Document last updated: 2026-09-03_
+_Document last updated: 2026-10-26_

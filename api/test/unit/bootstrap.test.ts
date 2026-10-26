@@ -59,6 +59,16 @@ describe("initializeDatabase", () => {
     expect(schemaSql).toContain("CREATE DATABASE IF NOT EXISTS criaembed");
     expect(schemaSql).not.toContain("%database%");
     expect(schemaSql).toContain("CREATE TABLE IF NOT EXISTS `EmbedBot`");
+    // Guarded composite index for per-bot time-ordered usage-log reads.
+    expect(schemaSql).toContain("INFORMATION_SCHEMA.STATISTICS");
+    expect(schemaSql).toContain("idx_bot_timecreated");
+    // Guarded display-flag columns on EmbedBot.
+    expect(schemaSql).toContain("`showSources` TINYINT(1) NOT NULL DEFAULT 1");
+    expect(schemaSql).toContain(
+      "`autoScrollTop` TINYINT(1) NOT NULL DEFAULT 1"
+    );
+    expect(schemaSql).toContain("COLUMN_NAME = 'showSources'");
+    expect(schemaSql).toContain("COLUMN_NAME = 'autoScrollTop'");
     expect(executedSqls[2]).toContain("RELEASE_LOCK");
     expect(release).toHaveBeenCalledTimes(1);
     expect(end).toHaveBeenCalledTimes(1);
