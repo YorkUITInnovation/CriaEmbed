@@ -245,7 +245,10 @@ export interface UsageLogCreateBody {
   userid?: number | null;
   prompt?: string | null;
   message?: string | null;
-  group_responses?: Record<string, any> | null;
+  // NOTE: typed `unknown` (tsoa `any`), not Record<string, any> - tsoa compiles
+  // Record<string, any> to a nestedObjectLiteral with no declared keys and its
+  // body validator strips every key, persisting `{}`. (Found live 2026-11-02.)
+  group_responses?: unknown;
   confidence?: number | null;
   prompt_tokens?: number | null;
   completion_tokens?: number | null;
@@ -254,7 +257,7 @@ export interface UsageLogCreateBody {
   ip?: string | null;
   request_payload?: unknown;
   response_payload?: unknown;
-  other?: Record<string, any> | null;
+  other?: unknown;
 }
 
 export class EmbedService extends BaseService {
