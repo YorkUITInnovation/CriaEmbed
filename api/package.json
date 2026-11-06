@@ -12,6 +12,8 @@
     "lint": "pretty-quick --check",
     "lint:fix": "pretty-quick",
     "format": "prettier -w src",
+    "pretest": "tsoa spec-and-routes",
+    "test:runtime": "node --test test/integration/remediation.mjs",
     "test": "jest"
   },
   "dependencies": {

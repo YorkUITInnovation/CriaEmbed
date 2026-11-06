@@ -58,7 +58,7 @@ type Config = {
   DEFAULT_BOT_GREETING: string;
   AZURE_SPEECH_API_URL: string;
   AZURE_SPEECH_API_KEY: string;
-  APP_MODE: "PRODUCTION" | "TESTING";
+  APP_MODE: AppMode;
 
   // Elasticsearch
   ELASTICSEARCH_HOST: string;
@@ -71,6 +71,12 @@ type Config = {
   RAGFLOW_EMBED_DIM: number;
   RAGFLOW_INDEX_NAME: string;
 };
+
+export type AppMode = "PRODUCTION" | "DEVELOPMENT";
+
+export function appMode(value: string | undefined): AppMode {
+  return value?.toUpperCase() === "DEVELOPMENT" ? "DEVELOPMENT" : "PRODUCTION";
+}
 
 export function redisDatabase(value: string | undefined, name: string): number {
   if (value === undefined) return 0;
@@ -133,6 +139,7 @@ function processConfig(config: Config): Config {
 
   return {
     ...config,
+    APP_MODE: appMode(process.env.APP_MODE),
     REDIS_DB: redisDb,
     RATE_LIMIT_REDIS_DB: rateLimitRedisDb,
     CRIA_BOT_CHAT_TIMEOUT_MS: chatTimeoutMs,

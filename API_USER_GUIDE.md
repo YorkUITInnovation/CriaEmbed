@@ -140,6 +140,11 @@ Returns JavaScript snippet. Copy & paste into `<script>` tag.
 
 Note: unpublished bots are intentionally hidden and return `404 NOT_FOUND` unless you pass a matching `dev-key` query parameter and the bot's `developerMode` config value matches it.
 
+For subsequent blocking `/send` and streaming `/stream` requests, send the
+same key in `X-Cria-Dev-Key`. The widget does this automatically. The key is
+checked on every turn, so rotating or clearing it immediately revokes preview
+access. A matching key never bypasses chat-session ownership.
+
 ### 4.2 Load Embed Script with Session (POST)
 
 POST /embed/{botId}/load
@@ -398,6 +403,12 @@ curl -X POST "https://api.example.com/manage/myBot/insert" \
 ### 6.2 Retrieve Bot Config
 
 GET /manage/{botId}/config
+
+Manage responses return `[REDACTED]` instead of non-empty `developerMode`
+and `microsoftAppPassword` secrets. Saving that placeholder preserves the
+stored secret; omit it to keep the value, supply a real string to replace it,
+or send `null`/an empty string to clear it. Inserts reject the reserved
+placeholder.
 
 Example:
 

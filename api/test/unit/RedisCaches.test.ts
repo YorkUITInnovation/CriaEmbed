@@ -118,12 +118,12 @@ describe("Redis cache TTL + key coherency", () => {
       );
     });
 
-    it("returns parsed JSON, or {} when the key is absent", async () => {
+    it("returns parsed JSON, or null when the key is absent", async () => {
       redis.get.mockResolvedValueOnce(JSON.stringify({ a: 1 }));
       expect(await cache.get("chat1")).toEqual({ a: 1 });
 
       redis.get.mockResolvedValueOnce(null);
-      expect(await cache.get("chat1")).toEqual({});
+      expect(await cache.get("chat1")).toBeNull();
     });
   });
 });

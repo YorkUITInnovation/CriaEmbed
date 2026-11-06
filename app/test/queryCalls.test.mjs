@@ -10,8 +10,12 @@ const source = await fs.readFile(
 );
 const { code } = await transform(source, { loader: "jsx", format: "cjs" });
 
-function setup(sendStream) {
+function setup(
+  sendStream,
+  { devKey, fetch = () => assert.fail("Unexpected fetch") } = {}
+) {
   const events = [];
+  const handlerOptions = [];
   const exports = {};
   const module = { exports };
   class Component {
@@ -20,6 +24,9 @@ function setup(sendStream) {
     }
   }
   class Handler {
+    constructor(_botId, _chatId, _apiUrl, options) {
+      handlerOptions.push(options);
+    }
     async sendStream(content, callbacks) {
       return sendStream(content, callbacks);
     }
@@ -35,7 +42,12 @@ function setup(sendStream) {
       return {};
     },
     window: {
-      Cria: { botId: "bot", chatId: "chat", chatApiUrl: "http://api.test" },
+      Cria: {
+        botId: "bot",
+        chatId: "chat",
+        chatApiUrl: "http://api.test",
+        devKey,
+      },
     },
     document: { dispatchEvent: (event) => events.push(event) },
     CustomEvent: class {
@@ -45,9 +57,31 @@ function setup(sendStream) {
       }
     },
     console: { error: () => {} },
+    fetch,
   });
-  return { QueryBox: module.exports.default, events };
+  return { QueryBox: module.exports.default, events, handlerOptions };
 }
+
+test("QueryBox passes the preview key to its streaming handler", async () => {
+  const { QueryBox, handlerOptions } = setup(async () => ({}), {
+    devKey: "preview-key",
+  });
+  await new QueryBox().sendChatStreaming("hello");
+  assert.equal(handlerOptions[0].devKey, "preview-key");
+});
+
+test("blocking preview requests include the developer-key header", async () => {
+  let headers;
+  const { QueryBox } = setup(async () => ({}), {
+    devKey: "preview-key",
+    fetch: async (_url, options) => {
+      headers = options.headers;
+      return { json: async () => ({ code: "SUCCESS" }) };
+    },
+  });
+  await new QueryBox().sendChatRegular("hello");
+  assert.equal(headers["X-Cria-Dev-Key"], "preview-key");
+});
 
 test("empty streams report an error without dispatching a second chat POST", async () => {
   const { QueryBox, events } = setup(async (_content, callbacks) => {

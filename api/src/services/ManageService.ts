@@ -7,6 +7,7 @@ import {
 import { CriaError } from "../models/CriaResponse.js";
 import axios, { AxiosResponse, AxiosError } from "axios";
 import { Config as GlobalConfig } from "../config.js";
+import { REDACTED_SECRET } from "../models/botConfigDto.js";
 
 export class DuplicateEmbedError extends Error {}
 
@@ -122,9 +123,16 @@ export class ManageService extends BaseService {
   // botExistsAndIsAuthorized, without the bot-existence lookup. For endpoints
   // that aren't scoped to a specific bot (e.g. the vector store CRUD routes).
   public async isApiKeyAuthorized(apiKey: string): Promise<true> {
+    const trimmedApiKey = (apiKey || "").trim();
+    if (!trimmedApiKey) {
+      throw new UnauthorizedError();
+    }
+
     try {
       const authCheckResponse: AxiosResponse = await super.get(
-        `${this.config.CRIA_SERVER_URL}/auth/${apiKey}/check`,
+        `${this.config.CRIA_SERVER_URL}/auth/${encodeURIComponent(
+          trimmedApiKey
+        )}/check`,
         {
           headers: { "x-api-key": this.config.CRIA_BOT_SERVER_TOKEN },
           validateStatus: status => status < 500 // Don't throw on 4xx, only 5xx
@@ -132,16 +140,10 @@ export class ManageService extends BaseService {
       );
 
       if (
-        authCheckResponse.status === 404 ||
-        authCheckResponse.data?.authorized === false
+        authCheckResponse.status !== 200 ||
+        authCheckResponse.data?.authorized !== true
       ) {
         throw new UnauthorizedError();
-      }
-
-      if (authCheckResponse.status !== 200) {
-        throw new CriaError(
-          `Auth check returned status ${authCheckResponse.status}`
-        );
       }
 
       return true;
@@ -171,13 +173,17 @@ export class ManageService extends BaseService {
           resolvedBotName
         )}/manage/about`,
         {
-          headers: {
-            "x-api-key": this.config.CRIA_BOT_SERVER_TOKEN,
-            "X-Internal-Service": "criaembed"
-          },
+          headers: { "x-api-key": apiKey },
           validateStatus: status => status < 500 // Don't throw on 4xx, only 5xx
         }
       );
+
+      if (
+        botExistsResponse.status === 401 ||
+        botExistsResponse.status === 403
+      ) {
+        throw new UnauthorizedError();
+      }
 
       if (botExistsResponse.status === 404) {
         throw new BotNotFoundError();
@@ -298,6 +304,15 @@ export class ManageService extends BaseService {
       throw new Error("Database not initialized");
     }
     await this.botExistsAndIsAuthorized(config.botName, apiKey);
+    if (
+      config.developerMode === REDACTED_SECRET ||
+      config.microsoftAppPassword === REDACTED_SECRET
+    ) {
+      throw new CriaError(
+        "Redacted placeholders cannot be used as new secrets.",
+        400
+      );
+    }
     if (await this.db.existsByName(config.botName)) {
       throw new DuplicateEmbedError();
     }
@@ -340,7 +355,14 @@ export class ManageService extends BaseService {
       throw new EmbedNotFoundError();
     }
     const provided = Object.fromEntries(
-      Object.entries(config).filter(([, value]) => value !== undefined)
+      Object.entries(config).filter(
+        ([key, value]) =>
+          value !== undefined &&
+          !(
+            (key === "developerMode" || key === "microsoftAppPassword") &&
+            value === REDACTED_SECRET
+          )
+      )
     );
     const merged: IBotEmbedConfig = {
       ...existing,

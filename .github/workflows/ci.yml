@@ -1,6 +1,6 @@
 name: CI
 
-on: 
+on:
   push:
     branches:
       - main
@@ -26,27 +26,35 @@ jobs:
           --health-retries 10
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20.x
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
 
-    - name: Install dependencies
-      run: npm install
-      working-directory: api
+      - name: Install dependencies
+        run: npm ci
+        working-directory: api
 
-    - name: Wait for Elasticsearch
-      shell: bash
-      run: |
-        echo "Waiting for Elasticsearch..."
-        for i in {1..60}; do
-          if curl -sf http://127.0.0.1:9200/_cluster/health >/dev/null; then echo "Elasticsearch is ready"; break; fi; sleep 1; done
+      - name: Wait for Elasticsearch
+        shell: bash
+        run: |
+          echo "Waiting for Elasticsearch..."
+          for i in {1..60}; do
+            if curl -sf http://127.0.0.1:9200/_cluster/health >/dev/null; then echo "Elasticsearch is ready"; break; fi; sleep 1; done
 
-    - name: Run tests
-      run: npm run test
-      working-directory: api
-      env:
-        NODE_OPTIONS: --experimental-vm-modules
+      - name: Build API
+        run: npm run build
+        working-directory: api
+
+      - name: Run tests
+        run: npm test -- --runInBand
+        working-directory: api
+        env:
+          NODE_OPTIONS: --experimental-vm-modules
+
+      - name: Validate built runtime contracts
+        run: npm run test:runtime
+        working-directory: api

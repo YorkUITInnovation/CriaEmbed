@@ -55,7 +55,7 @@ AZURE_SPEECH_API_KEY=<your_azure_speech_api_key>
 AZURE_SPEECH_API_URL="https://canadacentral.tts.speech.microsoft.com/cognitives"
 ASSETS_FOLDER_PATH="./dist/src/assets/"
 DEFAULT_BOT_GREETING="Hello there! Got a question?"
-APP_MODE=TEST
+APP_MODE=DEVELOPMENT
 DEBUG_ENABLED=false
 
 # --- Rate Limiting (optional)
@@ -90,3 +90,57 @@ stage runs `npm ci` + `npm run build`); no host `npm install`/dist needed.
     ```sh
     npm run dev
     ```
+
+## Testing
+
+`npm test -- --runInBand` generates TSOA routes and the OpenAPI specification
+before running Jest, including on a fresh checkout. Use `npm run build` for
+the production TypeScript and asset build.
+
+After building, `npm run test:runtime` exercises the built Express/TSOA
+routes over HTTP, including browser preflight, preview load/send/stream,
+secret PATCH round trips and vector upgrade behavior. External persistence
+and provider responses are isolated fixtures; it does not alter a running
+CRIA stack. The same command can run in a rebuilt API image with
+`test/integration` mounted read-only at `/home/cria/test/integration`.
+
+## Developer preview and secret updates
+
+Unpublished bots require a matching `dev-key` when loading/configuring the
+widget and `X-Cria-Dev-Key` on each `/send` or `/stream` request. The widget
+forwards this header automatically. Preview keys are checked against the
+current configuration on every turn, without bypassing session ownership.
+
+Manage responses redact `developerMode` and `microsoftAppPassword` as
+`[REDACTED]`. PATCH treats that reserved value (or omission) as unchanged;
+real strings replace secrets, and `null` or an empty string clears them.
+Inserts reject the placeholder.
+
+## Vector index upgrades
+
+Vectors are now bot-scoped. Existing indexes receive an explicit keyword
+mapping for `metadata.botNamespace`; new writes set this field and use
+namespaced document IDs. Existing unowned vectors are never automatically
+assigned to a bot. Searches return HTTP 409 while any unowned documents
+remain, instead of silently returning incomplete results.
+
+Before deploying against an existing vector index:
+
+1. Snapshot/back up the index and inventory documents missing
+   `metadata.botNamespace` (Elasticsearch `must_not` + `exists` query).
+2. Establish each document's owning bot from an authoritative external
+   source. Do not infer ownership from arbitrary metadata or document IDs.
+3. Re-upload each vector through that bot's authenticated
+   `/embed/{botId}/load/embedding/upsert` route. Use the same bot identifier
+   for writes and searches. Wait for Elasticsearch refresh and verify the
+   new vector and its namespace.
+4. Only after verifying each replacement, remove that document's old,
+   unnamespaced copy by its exact ID. Keep unverified documents in the
+   backup; do not delete or assign them speculatively.
+5. Confirm that the unowned-document count is zero, then test searches
+   for at least two bots to verify isolation.
+
+If an existing `metadata.botNamespace` mapping conflicts with `keyword`,
+create a new index with the current mapping, re-upload under verified
+ownership, then switch `ELASTICSEARCH_INDEX`. Do not modify the old index
+or its backup to work around a mapping error.

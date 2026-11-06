@@ -173,7 +173,8 @@ export default class QueryBox extends Component {
       const handler = new StreamingChatHandler(
         window.Cria.botId,
         window.Cria.chatId,
-        window.Cria.chatApiUrl
+        window.Cria.chatApiUrl,
+        { devKey: window.Cria.devKey }
       );
 
       const result = await handler.sendStream(content, {
@@ -316,6 +317,9 @@ export default class QueryBox extends Component {
           headers: {
             Accept: "application/json",
             "Content-Type": "application/json",
+            ...(window.Cria.devKey
+              ? { "X-Cria-Dev-Key": window.Cria.devKey }
+              : {}),
           },
           body: JSON.stringify({
             chatId: window.Cria.chatId,

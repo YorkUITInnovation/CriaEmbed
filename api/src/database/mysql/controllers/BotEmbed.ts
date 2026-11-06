@@ -59,6 +59,19 @@ export class BotEmbed extends MySQLController {
     super(pool);
   }
 
+  private sanitizeBotConfigForLog(
+    bot: IBotEmbedConfig
+  ): Record<string, unknown> {
+    const { developerMode, microsoftAppPassword, ...safeBotConfig } = bot;
+    return {
+      ...safeBotConfig,
+      developerMode: developerMode ? "[REDACTED]" : developerMode,
+      microsoftAppPassword: microsoftAppPassword
+        ? "[REDACTED]"
+        : microsoftAppPassword
+    };
+  }
+
   private postProcessRes(
     res: Record<string, any> | undefined
   ): IBotEmbed | undefined {
@@ -242,7 +255,7 @@ export class BotEmbed extends MySQLController {
   update(bot: IBotEmbedConfig): Promise<IBotEmbed | undefined> {
     return new Promise((resolve, reject) => {
       if (debugEnabled()) {
-        console.log("Updating bot: ", bot);
+        console.log("Updating bot: ", this.sanitizeBotConfigForLog(bot));
       }
 
       this.pool.query<ResultSetHeader>(

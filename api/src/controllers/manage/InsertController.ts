@@ -1,51 +1,59 @@
-import {Body, Header, Path, Post, Route, Tags} from "tsoa";
-import {BotNotFoundError, DuplicateEmbedError, ManageService, UnauthorizedError} from "../../services/ManageService.js";
-import {BaseController} from "../../models/BaseController.js";
+import { Body, Header, Path, Post, Route, Tags } from "tsoa";
+import {
+  BotNotFoundError,
+  DuplicateEmbedError,
+  ManageService,
+  UnauthorizedError
+} from "../../services/ManageService.js";
+import { BaseController } from "../../models/BaseController.js";
 
-import type {IBotBaseEmbedConfig, IBotEmbed} from "../../database/mysql/controllers/BotEmbed.js";
-import {API_KEY_HEADER_NAME, CriaError, CriaResponse} from "../../models/CriaResponse.js";
-import {getMySQLPool} from "../../database/mysql/pool.js";
+import type {
+  IBotBaseEmbedConfig,
+  IBotEmbed
+} from "../../database/mysql/controllers/BotEmbed.js";
+import {
+  API_KEY_HEADER_NAME,
+  CriaError,
+  CriaResponse
+} from "../../models/CriaResponse.js";
+import { getMySQLPool } from "../../database/mysql/pool.js";
+import { toManageBotConfigDto } from "../../models/botConfigDto.js";
 
 interface InsertResponse extends CriaResponse {
-  config?: IBotEmbed
+  config?: IBotEmbed;
 }
-
 
 @Tags("Manage")
 @Route("manage/{botId}/insert")
 export class InsertController extends BaseController {
-
   constructor(
-      pool?: import('mysql2').Pool,
-      public service: ManageService = new ManageService(pool || getMySQLPool()),
+    pool?: import("mysql2").Pool,
+    public service: ManageService = new ManageService(pool || getMySQLPool())
   ) {
     super();
   }
 
   @Post()
   public async insert(
-      @Path() botId: string,
-      @Body() config: IBotBaseEmbedConfig,
-      @Header(API_KEY_HEADER_NAME) apiKey: string
+    @Path() botId: string,
+    @Body() config: IBotBaseEmbedConfig,
+    @Header(API_KEY_HEADER_NAME) apiKey: string
   ): Promise<InsertResponse> {
-
     try {
       const botConfig: IBotEmbed = await this.service.insertBot(
-          {...config, botName: botId},
-          apiKey
-      )
+        { ...config, botName: botId },
+        apiKey
+      );
       this.setStatus(200);
 
       return {
-        config: botConfig,
+        config: toManageBotConfigDto(botConfig),
         message: "Successfully inserted config",
         status: 200,
         code: "SUCCESS",
         timestamp: Date.now().toString()
       };
-
     } catch (e: any) {
-
       switch (e.constructor) {
         case CriaError:
           const payload: CriaResponse = e.payload;
@@ -60,13 +68,13 @@ export class InsertController extends BaseController {
             timestamp: Date.now().toString()
           };
         case BotNotFoundError:
-          this.setStatus(404, e)
+          this.setStatus(404, e);
           return {
             message: "That bot does not exist.",
             status: 404,
             code: "NOT_FOUND",
             timestamp: Date.now().toString()
-          }
+          };
         case UnauthorizedError:
           this.setStatus(403, e);
           return {
@@ -74,7 +82,7 @@ export class InsertController extends BaseController {
             status: 403,
             code: "UNAUTHORIZED",
             timestamp: Date.now().toString()
-          }
+          };
         default:
           console.error(`[InsertController] Unexpected error:`, e);
           console.error(`[InsertController] Error stack:`, e.stack);
@@ -82,13 +90,10 @@ export class InsertController extends BaseController {
           return {
             timestamp: Date.now().toString(),
             status: 500,
-            message: `Internal error occurred! Error Class: '${e.constructor.name}', Message: '${e.message || 'Unknown error'}'`,
+            message: "Internal error occurred while inserting config.",
             code: "ERROR"
           };
       }
-
     }
-
   }
-
 }

@@ -11,7 +11,7 @@ import { Config } from "./config.js";
 import axios from "axios";
 import { CriaResponse } from "./models/CriaResponse.js";
 import path from "path";
-import multer from "multer";
+import multer, { MulterError } from "multer";
 import {
   CORRELATION_HEADER,
   correlationMiddleware,
@@ -20,6 +20,7 @@ import {
 import { METRICS, metricsMiddleware } from "./httpMetrics.js";
 import { probeMysqlReady, probeRedisReady } from "./readyzProbes.js";
 import { criaErrorMiddleware } from "./criaErrorMiddleware.js";
+import { constantTimeEquals } from "./models/secretCompare.js";
 
 // Node 22+ rejects bare JSON ESM imports without import attributes; require stays portable.
 const require = createRequire(import.meta.url);
@@ -33,7 +34,14 @@ installAxiosCorrelationInterceptor();
 // Number of proxy hops in front of this service, so req.ip is the real client
 // (used for rate-limit keying). Too high re-enables XFF spoofing; too low
 // collapses everyone onto the proxy IP. Default 1 (single reverse proxy).
-app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS ?? 1));
+const trustProxyHops = (() => {
+  const parsed = Number(process.env.TRUST_PROXY_HOPS ?? 1);
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 5) {
+    return 1;
+  }
+  return parsed;
+})();
+app.set("trust proxy", trustProxyHops);
 
 app.use(correlationMiddleware);
 app.use(metricsMiddleware);
@@ -60,6 +68,7 @@ const CORS_OPTIONS: cors.CorsOptions = {
     "Authorization",
     "Content-Type",
     "X-Api-Key",
+    "X-Cria-Dev-Key",
     "X-Requested-With",
     CORRELATION_HEADER
   ]
@@ -108,13 +117,21 @@ const upload = multer({
 });
 app.use((req, res, next) => {
   const contentType = req.headers["content-type"];
+  const isAzureWebhook = req.path === "/integrations/azure/messages";
 
-  if (contentType && contentType.includes("multipart/form-data")) {
+  if (
+    isAzureWebhook &&
+    contentType &&
+    contentType.includes("multipart/form-data")
+  ) {
     // Use multer to parse the multipart data
     upload.any()(req, res, err => {
       if (err) {
+        const status = (err as MulterError)?.code?.startsWith("LIMIT_")
+          ? 413
+          : 400;
         return res
-          .status(400)
+          .status(status)
           .json({ error: "Error parsing multipart/form-data" });
       }
 
@@ -144,8 +161,8 @@ baseRouter.use(
   express.static(path.join(Config.ASSETS_FOLDER_PATH, "/public"))
 );
 
-// Load swagger when TESTING
-if (Config.APP_MODE !== "PRODUCTION") {
+// Load swagger only in explicit development mode.
+if (Config.APP_MODE === "DEVELOPMENT") {
   baseRouter.use(
     ["/swagger", "/docs"],
     swagger.serve,
@@ -167,9 +184,13 @@ baseRouter.options("*", (_, res: Response) => {
 
 if (process.env.DEBUG_ENABLED?.toLowerCase() === "true") {
   baseRouter.use((req: Request, res: Response, next: NextFunction) => {
+    const bodyKeys =
+      req.body && typeof req.body === "object"
+        ? Object.keys(req.body as Record<string, unknown>)
+        : [];
     console.log("--------------------");
     console.log("Received URL:", req.url);
-    console.log("Received Body:", req.body);
+    console.log("Received Body:", `[REDACTED] keys=${bodyKeys.join(",")}`);
     console.log("Return Status:", res.statusCode);
     console.log("--------------------");
     next();
@@ -233,8 +254,17 @@ baseRouter.get("/readyz", async (_: Request, res: Response) => {
 });
 
 // Lightweight diagnostic endpoint to validate connectivity to external dependencies (e.g., Criabot)
-baseRouter.get("/manage/_diagnose", async (_: Request, res: Response) => {
-  // Unauthenticated endpoint - do NOT expose the internal criabot URL here.
+baseRouter.get("/manage/_diagnose", async (req: Request, res: Response) => {
+  const internalToken = req.header("X-Internal-Token") || "";
+  const configuredToken = Config.EMBED_INTERNAL_TOKEN || "";
+  if (!configuredToken || !constantTimeEquals(internalToken, configuredToken)) {
+    return res.status(401).json({
+      status: "unauthorized",
+      message: "Invalid or missing internal token."
+    });
+  }
+
+  // Internal endpoint - do NOT expose the internal criabot URL here.
   const diagnostics: any = {
     service: "CriaEmbed API",
     timestamp: Date.now(),

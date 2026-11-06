@@ -46,7 +46,6 @@ export class EmbedPopupJSController extends BaseController {
     // splice template text into the served JavaScript. See EmbedPopupHTMLController.
     const embedPopupScript = (EMBED_BASE_SCRIPT + " ")
       .replaceAll(/\$botIdLiteral/g, () => botIdLiteral)
-      .replaceAll(/\$botId/g, () => botId)
       .replaceAll(/\$hideLauncher/g, () => hideLauncher.toString());
 
     this.setStatus(200);

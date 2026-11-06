@@ -1,8 +1,17 @@
-import {Delete, Header, Path, Route, Tags} from "tsoa";
-import {BotNotFoundError, EmbedNotFoundError, ManageService, UnauthorizedError} from "../../services/ManageService.js";
-import {BaseController} from "../../models/BaseController.js";
-import {API_KEY_HEADER_NAME, CriaError, CriaResponse} from "../../models/CriaResponse.js";
-import {getMySQLPool} from "../../database/mysql/pool.js";
+import { Delete, Header, Path, Route, Tags } from "tsoa";
+import {
+  BotNotFoundError,
+  EmbedNotFoundError,
+  ManageService,
+  UnauthorizedError
+} from "../../services/ManageService.js";
+import { BaseController } from "../../models/BaseController.js";
+import {
+  API_KEY_HEADER_NAME,
+  CriaError,
+  CriaResponse
+} from "../../models/CriaResponse.js";
+import { getMySQLPool } from "../../database/mysql/pool.js";
 
 interface DeleteResponse extends CriaResponse {
   botName?: string;
@@ -11,22 +20,20 @@ interface DeleteResponse extends CriaResponse {
 @Tags("Manage")
 @Route("/manage/{botId}/delete")
 export class DeleteController extends BaseController {
-
   constructor(
-      pool?: import('mysql2').Pool,
-      public service: ManageService = new ManageService(pool || getMySQLPool())
+    pool?: import("mysql2").Pool,
+    public service: ManageService = new ManageService(pool || getMySQLPool())
   ) {
     super();
   }
 
   @Delete()
   public async delete(
-      @Path() botId: string,
-      @Header(API_KEY_HEADER_NAME) apiKey: string
+    @Path() botId: string,
+    @Header(API_KEY_HEADER_NAME) apiKey: string
   ): Promise<DeleteResponse> {
-
     try {
-      await this.service.deleteBot(botId, apiKey)
+      await this.service.deleteBot(botId, apiKey);
       this.setStatus(200);
 
       return {
@@ -34,11 +41,9 @@ export class DeleteController extends BaseController {
         message: "Bot has been cast into the void.",
         status: 200,
         code: "SUCCESS",
-        timestamp: Date.now().toString(),
+        timestamp: Date.now().toString()
       };
-
     } catch (e: any) {
-
       switch (e.constructor) {
         case CriaError:
           const payload: CriaResponse = e.payload;
@@ -54,13 +59,13 @@ export class DeleteController extends BaseController {
             code: "NOT_FOUND"
           };
         case BotNotFoundError:
-          this.setStatus(404, e)
+          this.setStatus(404, e);
           return {
             message: "That bot does not exist.",
             status: 404,
             code: "NOT_FOUND",
             timestamp: Date.now().toString()
-          }
+          };
         case UnauthorizedError:
           this.setStatus(403, e);
           return {
@@ -68,7 +73,7 @@ export class DeleteController extends BaseController {
             status: 403,
             code: "UNAUTHORIZED",
             timestamp: Date.now().toString()
-          }
+          };
         default:
           console.error(`[DeleteController] Unexpected error:`, e);
           console.error(`[DeleteController] Error stack:`, e.stack);
@@ -76,13 +81,10 @@ export class DeleteController extends BaseController {
           return {
             timestamp: Date.now().toString(),
             status: 500,
-            message: `Internal error occurred! Error Class: '${e.constructor.name}', Message: '${e.message || 'Unknown error'}'`,
+            message: "Internal error occurred while deleting config.",
             code: "ERROR"
           };
       }
-
     }
-
   }
-
 }

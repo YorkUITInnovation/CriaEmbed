@@ -1,5 +1,8 @@
 import { EmbedService } from "../../src/services/EmbedService";
-import { EmbedNotFoundError } from "../../src/services/ManageService";
+import {
+  EmbedNotFoundError,
+  UnauthorizedError
+} from "../../src/services/ManageService";
 import { Config } from "../../src/config";
 import { VectorStoreService } from "../../src/services/VectorStoreService"; // Import for typing the mock
 import { buildEmbedCriabotPrompt } from "../../src/services/embedPrompt";
@@ -83,11 +86,15 @@ describe("EmbedService", () => {
       botExistsAndIsAuthorized: jest.fn().mockResolvedValue(true)
     };
     mockMessageCache = {
-      get: jest.fn().mockResolvedValue(null),
+      get: jest.fn().mockResolvedValue("Hi there!"),
       set: jest.fn().mockResolvedValue("reply-id")
     };
     mockTrackingCache = {
-      get: jest.fn().mockResolvedValue({ some: "data" }),
+      get: jest.fn().mockResolvedValue({
+        some: "data",
+        botName: "mock-bot",
+        embedChatReady: true
+      }),
       set: jest.fn().mockResolvedValue("tracking-id")
     };
     mockUsageLog = {
@@ -114,6 +121,102 @@ describe("EmbedService", () => {
 
   it("should be defined", () => {
     expect(embedService).toBeDefined();
+  });
+
+  describe.each(["send", "stream"] as const)("%s developer preview", mode => {
+    const send = (chatId: string, devKey?: string) =>
+      mode === "stream"
+        ? embedService.streamEmbedChat("mock-bot", chatId, "hello", 2, {
+            devKey
+          })
+        : embedService.sendEmbedChat(
+            "mock-bot",
+            chatId,
+            "hello",
+            false,
+            null,
+            null,
+            devKey
+          );
+
+    beforeEach(() => {
+      mockManageService.retrieveBot.mockResolvedValue({
+        botName: "mock-bot",
+        publish: false,
+        developerMode: "preview-key",
+        botEmbedPosition: 1
+      });
+      mockedAxios.post.mockResolvedValue({
+        status: 200,
+        data: {
+          status: 200,
+          code: "SUCCESS",
+          reply: { content: { content: "hello" } }
+        }
+      });
+    });
+
+    it("allows an initialized unpublished preview with the matching key", async () => {
+      const [, chatId] = await embedService.retrieveEmbed(
+        "mock-bot",
+        false,
+        false,
+        "preview-key"
+      );
+      mockTrackingCache.get.mockResolvedValue(
+        mockTrackingCache.set.mock.calls.at(-1)[1]
+      );
+      await send(chatId, "preview-key");
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+      expect(mockedAxios.post.mock.calls[0][2]?.headers).not.toHaveProperty(
+        "X-Cria-Dev-Key"
+      );
+    });
+
+    it.each([undefined, "", "wrong-key"])(
+      "rejects key %s before upstream dispatch",
+      async key => {
+        await expect(send("chat-1", key)).rejects.toBeInstanceOf(
+          EmbedNotFoundError
+        );
+        expect(mockedAxios.post).not.toHaveBeenCalled();
+      }
+    );
+
+    it("rejects an old key after the developer key is rotated", async () => {
+      const [, chatId] = await embedService.retrieveEmbed(
+        "mock-bot",
+        false,
+        false,
+        "preview-key"
+      );
+      mockManageService.retrieveBot.mockResolvedValue({
+        botName: "mock-bot",
+        publish: false,
+        developerMode: "rotated-key"
+      });
+      await expect(send(chatId, "preview-key")).rejects.toBeInstanceOf(
+        EmbedNotFoundError
+      );
+      expect(mockedAxios.post).not.toHaveBeenCalled();
+    });
+
+    it("does not bypass session ownership with a valid preview key", async () => {
+      mockTrackingCache.get.mockResolvedValue({ botName: "other-bot" });
+      await expect(send("foreign-chat", "preview-key")).rejects.toBeInstanceOf(
+        EmbedNotFoundError
+      );
+      expect(mockedAxios.post).not.toHaveBeenCalled();
+    });
+
+    it("keeps published chat accessible without a developer key", async () => {
+      mockManageService.retrieveBot.mockResolvedValue({
+        botName: "mock-bot",
+        publish: true
+      });
+      await send("chat-1");
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe.each(["send", "stream"] as const)(
@@ -172,7 +275,7 @@ describe("EmbedService", () => {
         });
         mockManageService.retrieveBot.mockImplementationOnce(async () => {
           await botReady;
-          return { botName: "resolved-bot" };
+          return { botName: "resolved-bot", publish: true };
         });
         mockTrackingCache.get.mockImplementationOnce(async () => {
           await trackingReady;
@@ -275,7 +378,8 @@ describe("EmbedService", () => {
         mockedAxios.post.mockResolvedValue(upstreamReply);
         await send(embedService);
         mockManageService.retrieveBot.mockResolvedValueOnce({
-          botName: "updated-bot"
+          botName: "updated-bot",
+          publish: true
         });
         mockTrackingCache.get.mockResolvedValueOnce({
           resolvedPersonalizationBlock: "Updated personalization"
@@ -365,6 +469,19 @@ describe("EmbedService", () => {
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
       );
     });
+
+    describe("session ownership gate", () => {
+      it("rejects chats bound to a different bot", async () => {
+        mockTrackingCache.get.mockResolvedValueOnce({
+          botName: "other-bot",
+          embedChatReady: true
+        });
+        await expect(
+          embedService.sendEmbedChat("mock-bot", "chat-foreign", "hello")
+        ).rejects.toBeInstanceOf(EmbedNotFoundError);
+        expect(mockedAxios.post).not.toHaveBeenCalled();
+      });
+    });
   });
 
   describe("upsertEmbedding", () => {
@@ -372,9 +489,10 @@ describe("EmbedService", () => {
       const id = "doc-id";
       const embedding = [0.1, 0.2, 0.3];
       const metadata = { source: "test" };
-      await embedService.upsertEmbedding(id, embedding, metadata);
+      await embedService.upsertEmbedding("mock-bot", id, embedding, metadata);
       // Access the mocked instance's method directly from embedService
       expect((embedService as any).vectorStore.upsert).toHaveBeenCalledWith(
+        "mock-bot",
         id,
         embedding,
         metadata
@@ -392,10 +510,15 @@ describe("EmbedService", () => {
         mockSearchResults
       );
 
-      const results = await embedService.searchEmbeddings(queryEmbedding, k);
+      const results = await embedService.searchEmbeddings(
+        "mock-bot",
+        queryEmbedding,
+        k
+      );
       expect(results).toEqual(mockSearchResults);
       // Access the mocked instance's method directly from embedService
       expect((embedService as any).vectorStore.search).toHaveBeenCalledWith(
+        "mock-bot",
         queryEmbedding,
         k
       );
@@ -526,6 +649,7 @@ describe("EmbedService", () => {
 
     it("falls back to Criabot chat existence when the greeting cache is empty", async () => {
       mockMessageCache.get.mockResolvedValueOnce(null);
+      mockTrackingCache.get.mockResolvedValueOnce(null);
       mockedAxios.get.mockResolvedValueOnce({
         data: { code: "SUCCESS", exists: true }
       } as any);
@@ -534,8 +658,9 @@ describe("EmbedService", () => {
 
       expect(exists).toBe(true);
       expect(mockedAxios.get).toHaveBeenCalledWith(
-        `${Config.CRIA_BOT_SERVER_URL}/bots/chats/chat-2/exists?x-api-key=${Config.CRIA_BOT_SERVER_TOKEN}`,
+        `${Config.CRIA_BOT_SERVER_URL}/bots/chats/chat-2/exists`,
         expect.objectContaining({
+          headers: { "x-api-key": Config.CRIA_BOT_SERVER_TOKEN },
           timeout: 30000,
           validateStatus: expect.any(Function)
         })
@@ -728,6 +853,7 @@ describe("EmbedService", () => {
     it("should use canonical bot name from manage service when posting chat", async () => {
       mockManageService.retrieveBot.mockResolvedValueOnce({
         botName: "resolved-bot-name",
+        publish: true,
         botEmbedTheme: null,
         botEmbedDefaultEnabled: true,
         botEmbedPosition: 1,
@@ -1247,7 +1373,7 @@ describe("EmbedService", () => {
       expect(record.cost).not.toBeUndefined();
     });
 
-    it("does not write a usage record for a stream without done", async () => {
+    it("rejects EOF without a terminal event without replaying or logging success", async () => {
       const upstream = new PassThrough();
       mockedAxios.post.mockResolvedValueOnce({
         status: 200,
@@ -1259,13 +1385,151 @@ describe("EmbedService", () => {
         "chat-no-done",
         "hello"
       );
-      const finished = new Promise<void>(resolve => {
+      const log = jest.spyOn(console, "error").mockImplementation(() => {});
+      const failed = new Promise<Error>(resolve => {
         response.data.on("data", () => {});
-        response.data.on("end", () => resolve());
+        response.data.on("error", resolve);
       });
-      upstream.end('data: {"type":"chunk","content":"partial"}\n\n');
+      try {
+        upstream.end('data: {"type":"chunk","content":"partial"}\n\n');
+        expect((await failed).message).toMatch(/without a terminal event/);
+        expect(mockUsageLog.insert).not.toHaveBeenCalled();
+        expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+        expect(response.data.readableEnded).toBe(false);
+      } finally {
+        log.mockRestore();
+      }
+    });
+
+    it("parses split UTF-8 CRLF terminal frames without changing forwarded bytes", async () => {
+      const upstream = new PassThrough();
+      mockedAxios.post.mockResolvedValueOnce({
+        status: 200,
+        data: upstream
+      } as any);
+      const response = await embedService.streamEmbedChat(
+        "mock-bot",
+        "chat-crlf",
+        "hello"
+      );
+      const chunks: Buffer[] = [];
+      const finished = new Promise<void>((resolve, reject) => {
+        response.data.on("data", (chunk: Buffer) => chunks.push(chunk));
+        response.data.on("end", resolve);
+        response.data.on("error", reject);
+      });
+      const wire = Buffer.from(
+        ": heartbeat\r\n\r\n" +
+          'data: {"type":"chunk","content":"café 中文"}\r\n\r\n' +
+          'data: {"type":"done","usage":{"prompt_tokens":2,"completion_tokens":3,"total_tokens":5}}\r\n\r\n'
+      );
+      for (const byte of wire) {
+        upstream.write(Buffer.from([byte]));
+      }
+      expect(Buffer.concat(chunks)).toEqual(wire);
+      expect(upstream.readableEnded).toBe(false);
+      upstream.end();
       await finished;
+      expect(Buffer.concat(chunks)).toEqual(wire);
+      expect(mockUsageLog.insert).toHaveBeenCalledTimes(1);
+      expect(mockUsageLog.insert.mock.calls[0][0]).toMatchObject({
+        message: "café 中文",
+        total_tokens: 5
+      });
+    });
+
+    it("forwards a terminal upstream error without adding done, logging success or replaying", async () => {
+      const upstream = new PassThrough();
+      mockedAxios.post.mockResolvedValueOnce({
+        status: 200,
+        data: upstream
+      } as any);
+      const response = await embedService.streamEmbedChat(
+        "mock-bot",
+        "chat-error",
+        "hello"
+      );
+      const chunks: Buffer[] = [];
+      const finished = new Promise<void>((resolve, reject) => {
+        response.data.on("data", (chunk: Buffer) => chunks.push(chunk));
+        response.data.on("end", resolve);
+        response.data.on("error", reject);
+      });
+      const wire =
+        'data: {"type":"status","engine":"synthesis","state":"start","message":"Working"}\n\n' +
+        'data: {"type":"error","code":"PROVIDER_TRANSPORT","message":"Service unavailable"}\n\n';
+      upstream.end(wire);
+      await finished;
+      expect(Buffer.concat(chunks).toString()).toBe(wire);
       expect(mockUsageLog.insert).not.toHaveBeenCalled();
+      expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ['data: {"type":"done"}', /unfinished frame/],
+      ['data: {"type":"done"}\n', /unfinished frame/],
+      [
+        'data: {"type":"error"}\n\ndata: {"type":"done"}\n\n',
+        /after a terminal event/
+      ],
+      [
+        'data: {"type":"done"}\n\ndata: {"type":"done"}\n\n',
+        /after a terminal event/
+      ]
+    ])(
+      "rejects incomplete or conflicting terminal frames: %s",
+      async (wire, message) => {
+        const upstream = new PassThrough();
+        mockedAxios.post.mockResolvedValueOnce({
+          status: 200,
+          data: upstream
+        } as any);
+        const response = await embedService.streamEmbedChat(
+          "mock-bot",
+          "chat-invalid",
+          "hello"
+        );
+        const log = jest.spyOn(console, "error").mockImplementation(() => {});
+        try {
+          const failed = new Promise<Error>(resolve =>
+            response.data.once("error", resolve)
+          );
+          response.data.resume();
+          upstream.end(wire);
+          expect((await failed).message).toMatch(message);
+          expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+          expect(mockUsageLog.insert).not.toHaveBeenCalled();
+        } finally {
+          log.mockRestore();
+        }
+      }
+    );
+
+    it("rejects an upstream close without end instead of leaving the downstream hanging", async () => {
+      const upstream = new PassThrough();
+      mockedAxios.post.mockResolvedValueOnce({
+        status: 200,
+        data: upstream
+      } as any);
+      const response = await embedService.streamEmbedChat(
+        "mock-bot",
+        "chat-closed",
+        "hello"
+      );
+      const log = jest.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        const failed = new Promise<Error>(resolve =>
+          response.data.once("error", resolve)
+        );
+        response.data.resume();
+        upstream.write('data: {"type":"chunk","content":"partial"}\n\n');
+        upstream.destroy();
+        expect((await failed).message).toMatch(/closed before completion/);
+        expect(mockUsageLog.insert).not.toHaveBeenCalled();
+        expect(mockedAxios.post).toHaveBeenCalledTimes(1);
+      } finally {
+        log.mockRestore();
+      }
     });
 
     it("registered cancel destroys the upstream stream (client disconnect)", async () => {
@@ -1558,6 +1822,44 @@ describe("EmbedService", () => {
           resolvedPersonalizationBlock: "I am a 3rd year student."
         })
       );
+    });
+
+    it("saveTrackingInfo validates the per-bot API key before writing tracking data", async () => {
+      mockManageService.botExistsAndIsAuthorized.mockResolvedValue(true);
+      mockManageService.retrieveBot.mockResolvedValue({
+        botName: "mock-bot",
+        personalizationPayload: []
+      });
+
+      await embedService.saveTrackingInfo(
+        "mock-bot",
+        "chat-per-bot-key",
+        { payload: { courseId: 99 } },
+        "bot-specific-key"
+      );
+
+      expect(mockManageService.botExistsAndIsAuthorized).toHaveBeenCalledWith(
+        "mock-bot",
+        "bot-specific-key"
+      );
+      expect(mockTrackingCache.set).toHaveBeenCalled();
+    });
+
+    it("saveTrackingInfo rejects when the per-bot API key is not authorized", async () => {
+      mockManageService.botExistsAndIsAuthorized.mockRejectedValue(
+        new UnauthorizedError()
+      );
+
+      await expect(
+        embedService.saveTrackingInfo(
+          "mock-bot",
+          "chat-unauthorized",
+          { payload: { courseId: 77 } },
+          "wrong-key"
+        )
+      ).rejects.toBeInstanceOf(UnauthorizedError);
+
+      expect(mockTrackingCache.set).not.toHaveBeenCalled();
     });
 
     it("sendEmbedChat forwards resolvedPersonalizationBlock to criabot", async () => {

@@ -42,7 +42,7 @@ describe("EmbedController", () => {
     searchEmbeddings: jest.Mock;
   };
   let manageService: {
-    isApiKeyAuthorized: jest.Mock;
+    botExistsAndIsAuthorized: jest.Mock;
   };
   let controller: EmbedController;
   let request: any;
@@ -55,7 +55,7 @@ describe("EmbedController", () => {
       searchEmbeddings: jest.fn()
     };
     manageService = {
-      isApiKeyAuthorized: jest.fn().mockResolvedValue(true)
+      botExistsAndIsAuthorized: jest.fn().mockResolvedValue(true)
     };
 
     controller = new EmbedController(service as any, manageService as any);
@@ -171,9 +171,9 @@ describe("EmbedController", () => {
   });
 
   it("rejects upsertEmbedding without a valid API key", async () => {
-    manageService.isApiKeyAuthorized.mockResolvedValue(false);
+    manageService.botExistsAndIsAuthorized.mockResolvedValue(false);
 
-    const result = await controller.upsertEmbedding(undefined as any, {
+    const result = await controller.upsertEmbedding("bot-1", undefined as any, {
       id: "doc-1",
       embedding: [0.1, 0.2],
       metadata: {}
@@ -184,25 +184,35 @@ describe("EmbedController", () => {
   });
 
   it("performs upsertEmbedding when the API key is authorized", async () => {
-    const result = await controller.upsertEmbedding("api-key", {
+    const result = await controller.upsertEmbedding("bot-1", "api-key", {
       id: "doc-1",
       embedding: [0.1, 0.2],
       metadata: { source: "test" }
     });
 
-    expect(manageService.isApiKeyAuthorized).toHaveBeenCalledWith("api-key");
-    expect(service.upsertEmbedding).toHaveBeenCalledWith("doc-1", [0.1, 0.2], {
-      source: "test"
-    });
+    expect(manageService.botExistsAndIsAuthorized).toHaveBeenCalledWith(
+      "bot-1",
+      "api-key"
+    );
+    expect(service.upsertEmbedding).toHaveBeenCalledWith(
+      "bot-1",
+      "doc-1",
+      [0.1, 0.2],
+      { source: "test" }
+    );
     expect(result).toMatchObject({ status: 200, code: "SUCCESS" });
   });
 
   it("rejects searchEmbeddings without a valid API key", async () => {
-    manageService.isApiKeyAuthorized.mockResolvedValue(false);
+    manageService.botExistsAndIsAuthorized.mockResolvedValue(false);
 
-    const result = await controller.searchEmbeddings(undefined as any, {
-      queryEmbedding: [0.1, 0.2]
-    });
+    const result = await controller.searchEmbeddings(
+      "bot-1",
+      undefined as any,
+      {
+        queryEmbedding: [0.1, 0.2]
+      }
+    );
 
     expect(result).toMatchObject({ status: 401, code: "UNAUTHORIZED" });
     expect(service.searchEmbeddings).not.toHaveBeenCalled();
@@ -213,21 +223,25 @@ describe("EmbedController", () => {
       { id: "doc-1", score: 0.9 }
     ]);
 
-    const result = await controller.searchEmbeddings("api-key", {
+    const result = await controller.searchEmbeddings("bot-1", "api-key", {
       queryEmbedding: [0.1, 0.2],
       k: 5
     });
 
-    expect(service.searchEmbeddings).toHaveBeenCalledWith([0.1, 0.2], 5);
+    expect(service.searchEmbeddings).toHaveBeenCalledWith(
+      "bot-1",
+      [0.1, 0.2],
+      5
+    );
     expect(result).toEqual({ results: [{ id: "doc-1", score: 0.9 }] });
   });
 
   it("treats an authorization-check failure as unauthorized", async () => {
-    manageService.isApiKeyAuthorized.mockRejectedValue(
+    manageService.botExistsAndIsAuthorized.mockRejectedValue(
       new Error("network down")
     );
 
-    const result = await controller.upsertEmbedding("api-key", {
+    const result = await controller.upsertEmbedding("bot-1", "api-key", {
       id: "doc-1",
       embedding: [0.1],
       metadata: {}

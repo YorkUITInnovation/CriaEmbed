@@ -21,6 +21,7 @@ export class StreamingChatHandler {
     this.chatId = chatId;
     this.apiUrl = apiUrl;
     this.streamVersion = options.streamVersion ?? 2;
+    this.devKey = options.devKey;
     this.controller = new AbortController();
   }
 
@@ -64,6 +65,7 @@ export class StreamingChatHandler {
           headers: {
             Accept: "text/event-stream",
             "Content-Type": "application/json",
+            ...(this.devKey ? { "X-Cria-Dev-Key": this.devKey } : {}),
           },
           body: JSON.stringify({
             chatId: this.chatId,
@@ -202,8 +204,7 @@ export class StreamingChatHandler {
 
       if (!terminalKind) {
         result.outcome = "interrupted";
-        const errorMsg =
-          "The response ended without a terminal done event.";
+        const errorMsg = "The response ended without a terminal done event.";
         onError(new Error(errorMsg));
         result.errors.push(errorMsg);
       }

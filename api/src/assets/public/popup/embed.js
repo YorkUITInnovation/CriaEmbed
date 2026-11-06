@@ -1,5 +1,6 @@
 {
   const botId = $botIdLiteral;
+  const encodedBotId = encodeURIComponent(String(botId));
   const hideLauncher = $hideLauncher;
 
   !(async function () {
@@ -8,7 +9,7 @@
 
     const hasCriaStyles = !!document.getElementById("cria-styles");
     const rawHTML = await fetch(
-      chatConfig.chatApiUrl + `/embed/${botId}/popup.html`
+      chatConfig.chatApiUrl + `/embed/${encodedBotId}/popup.html`
     );
 
     // Inject Popup HTML

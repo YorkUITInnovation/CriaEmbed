@@ -1,15 +1,16 @@
-import {ChannelHandler} from "../ChannelHandler.js";
-import {MessageFactory, TurnContext} from "botbuilder";
+import { ChannelHandler } from "../ChannelHandler.js";
+import { MessageFactory, TurnContext } from "botbuilder";
 import fs from "fs";
 import path from "path";
-import {Config} from "../../../config.js";
+import { Config } from "../../../config.js";
+import { htmlTextEscape } from "../../../models/htmlEscape.js";
 
 export class EmailHandler extends ChannelHandler {
-
-  private static emailTemplate: string = fs.readFileSync(path.join(Config.ASSETS_FOLDER_PATH, '/email.html')).toString();
+  private static emailTemplate: string = fs
+    .readFileSync(path.join(Config.ASSETS_FOLDER_PATH, "/email.html"))
+    .toString();
 
   async onMessage(context: TurnContext): Promise<any> {
-
     const retrievedChat = await this.getOrCreateChat(context);
 
     // If the first email only is enabled
@@ -29,14 +30,18 @@ export class EmailHandler extends ChannelHandler {
     // Set reply as an HTML document
     activity.channelData = {
       htmlBody: (EmailHandler.emailTemplate + "")
-          .replace("%message%", response.prompt)
-          .replace("%reply%", response.replyMessage)
-          .replace("%warning%", this.embed.botTrustWarning || "AI makes mistakes. Check important info.")
+        .replace("%message%", htmlTextEscape(response.prompt))
+        .replace("%reply%", htmlTextEscape(response.replyMessage))
+        .replace(
+          "%warning%",
+          htmlTextEscape(
+            this.embed.botTrustWarning ||
+              "AI makes mistakes. Check important info."
+          )
+        )
     };
 
     // Send the activity
     await context.sendActivity(activity);
-
   }
-
 }

@@ -54,6 +54,7 @@ import {
   IBotEmbedConfig
 } from "../../src/database/mysql/controllers/BotEmbed";
 import { Config } from "../../src/config";
+import { toManageBotConfigDto } from "../../src/models/botConfigDto";
 import {
   BotNotFoundError,
   DuplicateEmbedError,
@@ -136,8 +137,7 @@ describe("ManageService", () => {
         `${Config.CRIA_BOT_SERVER_URL}/bots/testBot/manage/about`,
         expect.objectContaining({
           headers: expect.objectContaining({
-            "x-api-key": Config.CRIA_BOT_SERVER_TOKEN,
-            "X-Internal-Service": "criaembed"
+            "x-api-key": "testApiKey"
           })
         })
       );
@@ -232,6 +232,32 @@ describe("ManageService", () => {
       await expect(
         manageService.isApiKeyAuthorized("testApiKey")
       ).rejects.toThrow(UnauthorizedError);
+    });
+
+    it("throws UnauthorizedError when HTTP 200 does not include authorized=true", async () => {
+      mockedAxios.get.mockResolvedValueOnce({ status: 200, data: {} } as any);
+
+      await expect(
+        manageService.isApiKeyAuthorized("testApiKey")
+      ).rejects.toThrow(UnauthorizedError);
+    });
+
+    it("encodes API keys before placing them in the auth-check path", async () => {
+      mockedAxios.get.mockResolvedValueOnce({
+        status: 200,
+        data: { authorized: true }
+      } as any);
+
+      await expect(
+        manageService.isApiKeyAuthorized("../health_check?")
+      ).resolves.toBe(true);
+
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        `${Config.CRIA_SERVER_URL}/auth/..%2Fhealth_check%3F/check`,
+        expect.objectContaining({
+          headers: { "x-api-key": Config.CRIA_BOT_SERVER_TOKEN }
+        })
+      );
     });
   });
 
@@ -354,6 +380,24 @@ describe("ManageService", () => {
   });
 
   describe("insertBot", () => {
+    it.each(["developerMode", "microsoftAppPassword"])(
+      "rejects a redacted %s placeholder on insert",
+      async field => {
+        jest
+          .spyOn(manageService, "botExistsAndIsAuthorized")
+          .mockResolvedValue(true);
+        await expect(
+          manageService.insertBot(
+            {
+              botName: "new-bot",
+              [field]: "[REDACTED]"
+            },
+            "testApiKey"
+          )
+        ).rejects.toMatchObject({ payload: { status: 400 } });
+        expect(db.insert).not.toHaveBeenCalled();
+      }
+    );
     it("inserts a new bot config", async () => {
       const config: IBotEmbedConfig = {
         botName: "newBot",
@@ -410,6 +454,67 @@ describe("ManageService", () => {
   });
 
   describe("updateBot", () => {
+    it("preserves secrets when a retrieved DTO is edited and saved", async () => {
+      jest
+        .spyOn(manageService, "botExistsAndIsAuthorized")
+        .mockResolvedValue(true);
+      const existing: IBotEmbed = {
+        id: 3,
+        botName: "bot",
+        developerMode: "original-dev-key",
+        microsoftAppPassword: "original-azure-password"
+      };
+      const dto = toManageBotConfigDto(existing);
+      expect(dto.developerMode).toBe("[REDACTED]");
+      expect(dto.microsoftAppPassword).toBe("[REDACTED]");
+      expect(existing.developerMode).toBe("original-dev-key");
+      db.retrieveByName.mockResolvedValue(existing);
+      db.update.mockImplementation(async (config: IBotEmbedConfig) => config);
+      await manageService.updateBot(
+        { ...dto, botTitle: "Updated title" },
+        "testApiKey"
+      );
+      expect(db.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          botTitle: "Updated title",
+          developerMode: "original-dev-key",
+          microsoftAppPassword: "original-azure-password"
+        })
+      );
+      expect(mockedAxios.patch).not.toHaveBeenCalled();
+    });
+
+    it.each([undefined, null, "", "replacement-secret"])(
+      "handles explicit secret update %s without confusing it with redaction",
+      async value => {
+        jest
+          .spyOn(manageService, "botExistsAndIsAuthorized")
+          .mockResolvedValue(true);
+        db.retrieveByName.mockResolvedValue({
+          id: 3,
+          botName: "bot",
+          developerMode: "original-dev-key",
+          microsoftAppPassword: "original-azure-password"
+        });
+        db.update.mockImplementation(async (config: IBotEmbedConfig) => config);
+        await manageService.updateBot(
+          {
+            botName: "bot",
+            developerMode: value,
+            microsoftAppPassword: value
+          },
+          "testApiKey",
+          { syncToCriabot: false }
+        );
+        expect(db.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            developerMode: value === undefined ? "original-dev-key" : value,
+            microsoftAppPassword:
+              value === undefined ? "original-azure-password" : value
+          })
+        );
+      }
+    );
     it("updates an existing config", async () => {
       const config: IBotEmbedConfig = {
         botName: "updatedBot",

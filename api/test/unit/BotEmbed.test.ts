@@ -322,4 +322,53 @@ describe("BotEmbed (DB controller) - Insert/Update value handling", () => {
     expect(row?.showSources).toBe(true);
     expect(row?.autoScrollTop).toBe(true);
   });
+
+  it("redacts credential fields from debug bot-config logs", async () => {
+    const previousDebug = process.env.DEBUG_ENABLED;
+    process.env.DEBUG_ENABLED = "true";
+
+    const mockPool: any = {
+      query: jest.fn((...args: any[]) => {
+        const sql: string = args[0];
+        const cb: any = args[args.length - 1];
+
+        if (sql.includes("UPDATE EmbedBot")) {
+          cb(null, { affectedRows: 1 });
+        } else if (sql.includes("SELECT * FROM `EmbedBot` WHERE `botName`=?")) {
+          cb(null, [{ id: 5, botName: "redact-bot" }]);
+        } else {
+          cb(null, []);
+        }
+      })
+    };
+
+    const logSpy = jest.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      const controller = new BotEmbed(mockPool);
+      await controller.update({
+        botName: "redact-bot",
+        microsoftAppPassword: "super-secret",
+        developerMode: "dev-key"
+      } as IBotEmbedConfig);
+
+      expect(logSpy).toHaveBeenCalledWith(
+        "Updating bot: ",
+        expect.objectContaining({
+          microsoftAppPassword: "[REDACTED]",
+          developerMode: "[REDACTED]"
+        })
+      );
+      expect(logSpy).not.toHaveBeenCalledWith(
+        "Updating bot: ",
+        expect.objectContaining({
+          microsoftAppPassword: "super-secret",
+          developerMode: "dev-key"
+        })
+      );
+    } finally {
+      logSpy.mockRestore();
+      if (previousDebug === undefined) delete process.env.DEBUG_ENABLED;
+      else process.env.DEBUG_ENABLED = previousDebug;
+    }
+  });
 });

@@ -69,6 +69,26 @@ describe("EmbedChatController", () => {
 
   const mockRequest = { ip: "127.0.0.1" } as any;
 
+  it("forwards the developer key separately from caller identity", async () => {
+    service.sendEmbedChat.mockResolvedValue({ status: 200, code: "SUCCESS" });
+    await controller.send(
+      "bot-id",
+      { chatId: "chat-1", prompt: "hello" },
+      mockRequest,
+      "identity",
+      "preview-key"
+    );
+    expect(service.sendEmbedChat).toHaveBeenCalledWith(
+      "bot-id",
+      "chat-1",
+      "hello",
+      false,
+      "127.0.0.1",
+      "identity",
+      "preview-key"
+    );
+  });
+
   it("throws when prompt is empty", async () => {
     await expect(
       controller.send(
@@ -172,6 +192,26 @@ describe("EmbedStreamController", () => {
   afterEach(() => {
     setStatusSpy.mockRestore();
     setHeaderSpy.mockRestore();
+  });
+
+  it("passes the developer key to stream preparation", async () => {
+    const upstream = new PassThrough();
+    upstream.end("Denied");
+    service.streamEmbedChat.mockResolvedValue({ status: 403, data: upstream });
+    await controller.stream(
+      "bot-id",
+      { chatId: "chat-1", prompt: "hello" },
+      { ip: "127.0.0.1" } as express.Request,
+      undefined,
+      "preview-key"
+    );
+    expect(service.streamEmbedChat).toHaveBeenCalledWith(
+      "bot-id",
+      "chat-1",
+      "hello",
+      undefined,
+      expect.objectContaining({ devKey: "preview-key" })
+    );
   });
 
   it.each([
@@ -519,7 +559,7 @@ describe("EmbedStreamController", () => {
     expect(result).toMatchObject({
       status: 404,
       code: "NOT_FOUND",
-      message: "Chat not found"
+      message: "Upstream chat session was not found."
     });
   });
 

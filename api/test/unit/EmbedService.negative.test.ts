@@ -109,6 +109,7 @@ describe("EmbedService - Negative Cases", () => {
     it("should throw CriaError when Criabot API returns error", async () => {
       mockManageService.retrieveBot.mockResolvedValueOnce({
         botName: "test-bot",
+        publish: true,
         botEmbedTheme: null,
         botEmbedDefaultEnabled: true,
         botEmbedPosition: 1,
@@ -118,6 +119,7 @@ describe("EmbedService - Negative Cases", () => {
         botTrustWarning: null,
         botContact: null
       });
+      mockMessageCache.get.mockResolvedValueOnce({ content: "Greeting" });
 
       mockedAxios.post.mockResolvedValueOnce({
         status: 500,

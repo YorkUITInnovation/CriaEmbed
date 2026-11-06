@@ -362,19 +362,21 @@ export class EmbedService extends BaseService {
 
   // Upsert embedding to Elasticsearch
   async upsertEmbedding(
+    botName: string,
     id: string,
     embedding: number[],
     metadata: Record<string, any>
   ): Promise<void> {
-    await this.vectorStore.upsert(id, embedding, metadata);
+    await this.vectorStore.upsert(botName, id, embedding, metadata);
   }
 
   // Search embeddings in Elasticsearch
   async searchEmbeddings(
+    botName: string,
     queryEmbedding: number[],
     k: number = 10
   ): Promise<any[]> {
-    return await this.vectorStore.search(queryEmbedding, k);
+    return await this.vectorStore.search(botName, queryEmbedding, k);
   }
 
   private async sendChat(
@@ -383,10 +385,11 @@ export class EmbedService extends BaseService {
     prompt: string,
     history: any[],
     clientIp: string | null = null,
-    criaIdentity: string | null = null
+    criaIdentity: string | null = null,
+    devKey?: string
   ): Promise<CriaGetGPTResponseFunctionResponse> {
     const { botConfig, criabotPrompt, personalization, mappedChatId } =
-      await this.prepareCriabotChat(botName, chatId, prompt);
+      await this.prepareCriabotChat(botName, chatId, prompt, devKey);
     const canonicalBotName = botConfig.botName;
 
     try {
@@ -587,13 +590,19 @@ export class EmbedService extends BaseService {
   private async prepareCriabotChat(
     botName: string,
     chatId: string,
-    prompt: string
+    prompt: string,
+    devKey?: string
   ) {
-    // One snapshot keeps mapping, prompt context and personalization consistent.
-    const [botConfig, trackingData] = await Promise.all([
+    const [botConfig, trackingDataRaw] = await Promise.all([
       this.manageService.retrieveBot(botName, "", true),
       this.trackingCache.get(chatId)
     ]);
+    this.assertPublished(botConfig, devKey);
+    const trackingData = await this.assertEmbedSessionOwnership(
+      botConfig.botName,
+      chatId,
+      trackingDataRaw
+    );
     const mapped = trackingData?.criabotChatId;
     const block = trackingData?.resolvedPersonalizationBlock;
     return {
@@ -606,6 +615,36 @@ export class EmbedService extends BaseService {
           ? block.trim()
           : undefined
     };
+  }
+
+  private async assertEmbedSessionOwnership(
+    botName: string,
+    chatId: string,
+    trackingData?: Record<string, any> | null
+  ): Promise<Record<string, any> | null> {
+    const trackedBotName =
+      typeof trackingData?.botName === "string" ? trackingData.botName : "";
+    if (trackedBotName) {
+      if (trackedBotName !== botName) {
+        throw new EmbedNotFoundError(
+          "Chat session does not belong to this bot."
+        );
+      }
+      return trackingData ?? null;
+    }
+
+    const greeting = await this.messageCache.get(chatId, "greeting");
+    if (!greeting) {
+      throw new EmbedNotFoundError("Chat session was not initialized.");
+    }
+
+    const hydratedTracking = {
+      ...(trackingData || {}),
+      botName,
+      embedChatReady: true
+    };
+    await this.trackingCache.set(chatId, hydratedTracking);
+    return hydratedTracking;
   }
 
   private async postCriabotChat(
@@ -824,7 +863,11 @@ export class EmbedService extends BaseService {
 
     if (debugEnabled()) {
       // botConfig carries `developerMode`, the publish-gate bypass secret.
-      const { developerMode: _redacted, ...loggableConfig } = botConfig;
+      const {
+        developerMode: _redactedDeveloperMode,
+        microsoftAppPassword: _redactedMicrosoftAppPassword,
+        ...loggableConfig
+      } = botConfig;
       console.log("Returning embed config for bot: " + botName, loggableConfig);
     }
 
@@ -872,7 +915,11 @@ export class EmbedService extends BaseService {
       botConfig.personalizationPayload,
       extractSessionPayload(sessionData)
     );
-    const toStore: Record<string, any> = { ...sessionData };
+    const toStore: Record<string, any> = {
+      ...sessionData,
+      botName: botConfig.botName,
+      embedChatReady: true
+    };
     if (resolvedPersonalizationBlock) {
       toStore.resolvedPersonalizationBlock = resolvedPersonalizationBlock;
     }
@@ -899,8 +946,14 @@ export class EmbedService extends BaseService {
     chatId: string,
     apiKey: string
   ): Promise<Record<string, any> | null> {
-    await this.manageService.botExistsAndIsAuthorized(botName, apiKey);
-    return await this.trackingCache.get(chatId);
+    const botConfig = await this.manageService.retrieveBot(botName, apiKey);
+    const trackingData = await this.trackingCache.get(chatId);
+    const trackedBotName =
+      typeof trackingData?.botName === "string" ? trackingData.botName : null;
+    if (trackedBotName && trackedBotName !== botConfig.botName) {
+      return null;
+    }
+    return trackingData;
   }
 
   async retrieveEmbed(
@@ -921,6 +974,10 @@ export class EmbedService extends BaseService {
       chatId,
       botConfig.botGreeting || Config.DEFAULT_BOT_GREETING
     );
+    await this.trackingCache.set(chatId, {
+      botName: botConfig.botName,
+      embedChatReady: true
+    });
 
     const popupConfig: EmbedPopupConfig = {
       // Chat needs
@@ -965,7 +1022,10 @@ export class EmbedService extends BaseService {
 
     const response: AxiosResponse = await this.get(
       Config.CRIA_BOT_SERVER_URL +
-        `/bots/chats/${criabotChatId}/exists?x-api-key=${Config.CRIA_BOT_SERVER_TOKEN}`
+        `/bots/chats/${encodeURIComponent(criabotChatId)}/exists`,
+      {
+        headers: { "x-api-key": Config.CRIA_BOT_SERVER_TOKEN }
+      }
     );
 
     if (response.data.code !== "SUCCESS") {
@@ -989,7 +1049,8 @@ export class EmbedService extends BaseService {
     prompt: string,
     fullResponse: boolean = false,
     clientIp: string | null = null,
-    criaIdentity: string | null = null
+    criaIdentity: string | null = null,
+    devKey?: string
   ): Promise<SendChatResponse | ExtendedSendChatResponse> {
     const history = [{ role: "user", content: prompt }];
     const apiResponse: CriaGetGPTResponseFunctionResponse = await this.sendChat(
@@ -998,7 +1059,8 @@ export class EmbedService extends BaseService {
       prompt,
       history,
       clientIp,
-      criaIdentity
+      criaIdentity,
+      devKey
     );
     const criaBotResponse = apiResponse.criabot_response;
 
@@ -1074,6 +1136,7 @@ export class EmbedService extends BaseService {
    *   the same await-the-write-attempt durability as the blocking path,
    *   without delaying any answer delta.
    * - Destroying the tap (client disconnect) destroys the upstream stream.
+   * - EOF requires a fully framed terminal event; interruptions never become success.
    */
   private tapCriabotStream(
     upstream: Readable,
@@ -1090,6 +1153,7 @@ export class EmbedService extends BaseService {
     let buffer = "";
     let message = "";
     let usageLogPromise: Promise<void> | null = null;
+    let terminal: "done" | "error" | null = null;
 
     const logDoneUsage = (doneEvent: any) => {
       if (usageLogPromise) {
@@ -1125,27 +1189,41 @@ export class EmbedService extends BaseService {
 
     const consumeEvents = (text: string) => {
       buffer += text;
-      let sep = buffer.indexOf("\n\n");
-      while (sep !== -1) {
-        const rawEvent = buffer.slice(0, sep);
-        buffer = buffer.slice(sep + 2);
+      let doneEvent: any = null;
+      let separator = /\r?\n\r?\n/.exec(buffer);
+      while (separator) {
+        const rawEvent = buffer.slice(0, separator.index);
+        buffer = buffer.slice(separator.index + separator[0].length);
         const dataLines = rawEvent
-          .split("\n")
+          .split(/\r?\n/)
           .filter(line => line.startsWith("data:"))
           .map(line => line.slice(5).replace(/^ /, ""));
         if (dataLines.length) {
+          let event: any;
           try {
-            const event = JSON.parse(dataLines.join("\n"));
-            if (event?.type === "chunk" && typeof event.content === "string") {
-              message += event.content;
-            } else if (event?.type === "done") {
-              logDoneUsage(event);
-            }
+            event = JSON.parse(dataLines.join("\n"));
           } catch (_error) {
-            // Tapping is best-effort; never disturb the forwarded stream.
+            throw new Error("Criabot SSE contained invalid event data.");
+          }
+          if (!event || typeof event.type !== "string") {
+            throw new Error("Criabot SSE contained an invalid event object.");
+          }
+          if (terminal) {
+            throw new Error("Criabot SSE emitted data after a terminal event.");
+          }
+          if (event.type === "chunk" && typeof event.content === "string") {
+            message += event.content;
+          } else if (event.type === "done" || event.type === "error") {
+            terminal = event.type;
+            if (terminal === "done") {
+              doneEvent = event;
+            }
           }
         }
-        sep = buffer.indexOf("\n\n");
+        separator = /\r?\n\r?\n/.exec(buffer);
+      }
+      if (doneEvent) {
+        logDoneUsage(doneEvent);
       }
     };
 
@@ -1163,8 +1241,9 @@ export class EmbedService extends BaseService {
       transform(chunk, _encoding, callback) {
         try {
           consumeEvents(decoder.write(chunk));
-        } catch (_error) {
-          // best-effort tap
+        } catch (error) {
+          callback(error as Error);
+          return;
         }
         callback(null, chunk);
       },
@@ -1172,8 +1251,15 @@ export class EmbedService extends BaseService {
         void (async () => {
           try {
             consumeEvents(decoder.end());
-          } catch (_error) {
-            // best-effort tap
+            if (buffer.trim()) {
+              throw new Error("Criabot SSE ended with an unfinished frame.");
+            }
+            if (!terminal) {
+              throw new Error("Criabot SSE ended without a terminal event.");
+            }
+          } catch (error) {
+            callback(error as Error);
+            return;
           }
           // Terminal finalization awaits the usage write attempt (it does
           // not delay any already-forwarded delta).
@@ -1201,6 +1287,16 @@ export class EmbedService extends BaseService {
       );
     });
     upstream.on("error", err => tap.destroy(err));
+    upstream.once("close", () => {
+      if (!upstream.readableEnded && !tap.destroyed) {
+        tap.destroy(new Error("Criabot SSE closed before completion."));
+      }
+    });
+    if (upstream.destroyed && !upstream.readableEnded) {
+      tap.destroy(
+        upstream.errored ?? new Error("Criabot SSE closed before completion.")
+      );
+    }
     return tap;
   }
 
@@ -1255,6 +1351,7 @@ export class EmbedService extends BaseService {
     hooks?: {
       clientIp?: string | null;
       criaIdentity?: string | null;
+      devKey?: string;
       registerCancel?: (cancel: () => void) => void;
     }
   ): Promise<AxiosResponse> {
@@ -1277,7 +1374,7 @@ export class EmbedService extends BaseService {
     hooks?.registerCancel?.(cancelUpstream);
 
     const { botConfig, criabotPrompt, personalization, mappedChatId } =
-      await this.prepareCriabotChat(botName, chatId, prompt);
+      await this.prepareCriabotChat(botName, chatId, prompt, hooks?.devKey);
     const canonicalBotName = botConfig.botName;
 
     if (abortController.signal.aborted) {

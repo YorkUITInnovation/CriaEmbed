@@ -43,7 +43,8 @@ export class EmbedChatController extends BaseController {
     @Path() botId: string,
     @Body() config: ChatPayload,
     @Request() request: e.Request,
-    @Header("X-Cria-Identity") criaIdentity?: string
+    @Header("X-Cria-Identity") criaIdentity?: string,
+    @Header("X-Cria-Dev-Key") devKey?: string
   ): Promise<SendChatResponse> {
     // Basic input validation to avoid malformed or abusive requests
     if (!botId || botId.trim().length === 0) {
@@ -74,7 +75,8 @@ export class EmbedChatController extends BaseController {
         prompt,
         false,
         request.ip ?? null,
-        criaIdentity ?? null
+        criaIdentity ?? null,
+        ...(devKey === undefined ? [] : ([devKey] as const))
       );
       this.setStatus(200);
       return chat;
@@ -133,7 +135,8 @@ export class EmbedStreamController extends BaseController {
     @Path() botId: string,
     @Body() config: ChatPayload,
     @Request() request: e.Request,
-    @Header("X-Cria-Identity") criaIdentity?: string
+    @Header("X-Cria-Identity") criaIdentity?: string,
+    @Header("X-Cria-Dev-Key") devKey?: string
   ): Promise<Readable | CriaResponse> {
     if (!botId || botId.trim().length === 0) {
       throw new CriaError("Invalid botId provided.");
@@ -180,6 +183,7 @@ export class EmbedStreamController extends BaseController {
           clientIp: request?.ip ?? null,
           // X-Cria-Identity is forwarded opaquely: never parsed or verified here.
           criaIdentity: criaIdentity ?? null,
+          devKey,
           // Browser disconnect -> cancel upstream work in Criabot/Criadex.
           registerCancel: cancel => {
             upstreamCancel = cancel;
@@ -191,27 +195,17 @@ export class EmbedStreamController extends BaseController {
       );
 
       if (response.status !== 200) {
-        const bodyText = await this.streamToString(response.data);
-        let upstreamMessage =
-          bodyText || `Upstream responded with HTTP ${response.status}`;
-
-        try {
-          const bodyJson = JSON.parse(bodyText);
-          upstreamMessage = bodyJson?.message || upstreamMessage;
-        } catch (_error) {
-          // Non-JSON upstream body: keep it as text but bound the length so a
-          // large/raw error page can't become an unbounded client message.
-          if (upstreamMessage.length > 500) {
-            upstreamMessage = upstreamMessage.slice(0, 500) + "…";
-          }
-        }
+        await this.streamToString(response.data);
 
         this.setStatus(response.status);
         return {
           timestamp: Date.now().toString(),
           status: response.status as CriaResponseStatus,
           code: response.status === 404 ? "NOT_FOUND" : "ERROR",
-          message: upstreamMessage
+          message:
+            response.status === 404
+              ? "Upstream chat session was not found."
+              : "Upstream chat service returned an error."
         };
       }
 

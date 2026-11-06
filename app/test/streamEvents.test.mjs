@@ -69,6 +69,50 @@ function mockFetchStream(chunks, { status = 200 } = {}) {
   });
 }
 
+test("preview streams send the developer key in a header, not the URL or body", async () => {
+  const originalFetch = globalThis.fetch;
+  let request;
+  globalThis.fetch = async (url, options) => {
+    request = { url, options };
+    return mockFetchStream([sse({ type: "done" })])(url, options);
+  };
+  try {
+    const handler = new StreamingChatHandler(
+      "bot-1",
+      "chat-1",
+      "http://api.test",
+      {
+        devKey: "preview-key",
+      }
+    );
+    await handler.sendStream("hello");
+    assert.equal(request.options.headers["X-Cria-Dev-Key"], "preview-key");
+    assert.ok(!request.url.includes("preview-key"));
+    assert.ok(!request.options.body.includes("preview-key"));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("public streams omit the developer-key header", async () => {
+  const originalFetch = globalThis.fetch;
+  let headers;
+  globalThis.fetch = async (_url, options) => {
+    headers = options.headers;
+    return mockFetchStream([sse({ type: "done" })])();
+  };
+  try {
+    await new StreamingChatHandler(
+      "bot-1",
+      "chat-1",
+      "http://api.test"
+    ).sendStream("hello");
+    assert.ok(!Object.hasOwn(headers, "X-Cria-Dev-Key"));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("status events are collected and forwarded verbatim", () => {
   const { handler, result, seen, callbacks } = setup();
   handler._handleEvent(
@@ -172,7 +216,8 @@ test("SSE parser reassembles events split across reads", () => {
   const first = handler._consumeSseBuffer('data: {"type":"chun');
   assert.equal(first.events.length, 0);
   const second = handler._consumeSseBuffer(
-    first.remainder + 'k","content":"Hi"}\n\ndata: {"type":"done","elapsed_ms":1}\n\n'
+    first.remainder +
+      'k","content":"Hi"}\n\ndata: {"type":"done","elapsed_ms":1}\n\n'
   );
   assert.equal(second.events.length, 2);
   assert.equal(second.events[0].type, "chunk");
@@ -264,7 +309,10 @@ function mockFetchHangingAfter(chunks) {
 async function withTimeout(promise, ms = 500) {
   let timer;
   const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error("sendStream did not settle")), ms);
+    timer = setTimeout(
+      () => reject(new Error("sendStream did not settle")),
+      ms
+    );
   });
   try {
     return await Promise.race([promise, timeout]);
@@ -331,10 +379,7 @@ test("done followed by error in one batch is a terminal violation", async () => 
 test("error followed by done in one batch stays error", async () => {
   const previousFetch = globalThis.fetch;
   globalThis.fetch = mockFetchStream([
-    sse(
-      { type: "error", message: "boom" },
-      { type: "done", elapsed_ms: 1 }
-    ),
+    sse({ type: "error", message: "boom" }, { type: "done", elapsed_ms: 1 }),
   ]);
   try {
     const handler = new StreamingChatHandler("bot", "chat", "http://api.test");
@@ -349,11 +394,7 @@ test("error followed by done in one batch stays error", async () => {
 
 test("duplicate done after error is ignored", () => {
   const { handler, result, callbacks } = setup();
-  handler._handleEvent(
-    { type: "error", message: "boom" },
-    result,
-    callbacks
-  );
+  handler._handleEvent({ type: "error", message: "boom" }, result, callbacks);
   const second = handler._handleEvent(
     { type: "done", elapsed_ms: 1 },
     result,

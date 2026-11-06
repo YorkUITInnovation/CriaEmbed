@@ -206,6 +206,11 @@ Responses:
 
 Sends a user prompt to the embedded chat and returns the bot reply. Forwards to Criabot with any resolved personalization block as `system_ephemeral_payload`. Assistant `reply` text is HTML (Criabot converts markdown server-side).
 
+Unpublished previews require `X-Cria-Dev-Key` matching the current
+`developerMode` secret. The same header applies to `/stream`. Missing,
+incorrect, or revoked keys return HTTP 404. The chat must belong to the
+requested bot regardless of the key.
+
 Path Parameters:
 
 - `botId` (string)
@@ -393,11 +398,16 @@ on-screen keyboard or measuring live model/proxy latency.
 
 ### POST /embed/{botId}/load/embedding/upsert
 
-> Nested under the `/embed/{botId}/load` route for historical reasons; `botId` is accepted in the path but not used by the handler — this is an internal/admin operation, not part of the public embed widget surface.
+> Nested under the `/embed/{botId}/load` route for historical reasons. This is a bot-scoped administrative operation, not part of the public embed widget surface.
 
-Requires `X-Api-Key` header (validated against the same auth check used by `/manage`, see Authentication above — not bot-scoped since this route isn't tied to a specific bot).
+Requires `X-Api-Key` authorized for the requested bot, including the global auth check used by `/manage`.
 
 Upserts a raw vector into CriaEmbed's own Elasticsearch index (`criaembed` by default) — independent of Criadex/Ragflow's own indices.
+
+Vectors must contain exactly `RAGFLOW_EMBED_DIM` finite numbers (default 768).
+Metadata is limited to 16 KiB of UTF-8 JSON. The service sets
+`metadata.botNamespace` from the bot identifier, ignoring any caller-supplied
+namespace, and prefixes document IDs with that namespace.
 
 Headers:
 
@@ -423,6 +433,11 @@ Responses:
 Requires `X-Api-Key` header (same check as upsert above).
 
 Semantic search against the same Elasticsearch index via cosine similarity.
+
+Searches are filtered to the requested bot. `k` must be an integer from 1 to 50
+(default 10). Invalid input returns HTTP 400. An index containing legacy
+documents without `metadata.botNamespace` returns HTTP 409 until migrated;
+see [vector upgrade procedure](api/README.md#vector-index-upgrades).
 
 Headers:
 
@@ -574,6 +589,9 @@ Responses:
 
 Retrieve existing embed configuration.
 
+Manage responses redact non-empty `developerMode` and `microsoftAppPassword`
+as `[REDACTED]`. Never use this reserved placeholder as a new secret.
+
 Path Parameters:
 
 - `botId` (string)
@@ -604,6 +622,9 @@ Body (JSON): `IBotBaseEmbedConfig` (see POST /insert for example body)
 
 Behavior:
 
+- Omitted secrets or `[REDACTED]` preserve the stored value. A real string
+  replaces it; explicit `null` or an empty string clears it. Redacted
+  placeholders do not trigger developer-mode synchronization.
 - If `publish` and/or `developerMode` are explicitly present in the body (and the caller is not Criabot), CriaEmbed PATCHes Criabot's `/bots/{botId}/manage/publish` with the mapped 3-state status (`published` / `develop` / `unpublished`). Unrelated field updates do not trigger a sync.
 - Requires `CRIA_BOT_SERVER_TOKEN` for outbound sync.
 

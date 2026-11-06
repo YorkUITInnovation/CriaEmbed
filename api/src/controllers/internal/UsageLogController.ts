@@ -5,6 +5,7 @@ import type { UsageLogCreateBody } from "../../services/EmbedService.js";
 import { CriaResponse } from "../../models/CriaResponse.js";
 import { Config } from "../../config.js";
 import { IEmbedUsageLog } from "../../database/mysql/controllers/UsageLog.js";
+import { constantTimeEquals } from "../../models/secretCompare.js";
 
 const INTERNAL_TOKEN_HEADER = "X-Internal-Token";
 
@@ -42,7 +43,7 @@ export class UsageLogController extends BaseController {
   ): Promise<UsageLogListResponse> {
     if (
       !Config.EMBED_INTERNAL_TOKEN ||
-      internalToken !== Config.EMBED_INTERNAL_TOKEN
+      !constantTimeEquals(internalToken || "", Config.EMBED_INTERNAL_TOKEN)
     ) {
       this.setStatus(401);
       return {
@@ -94,7 +95,7 @@ export class UsageLogController extends BaseController {
   ): Promise<UsageLogCreateResponse> {
     if (
       !Config.EMBED_INTERNAL_TOKEN ||
-      internalToken !== Config.EMBED_INTERNAL_TOKEN
+      !constantTimeEquals(internalToken || "", Config.EMBED_INTERNAL_TOKEN)
     ) {
       this.setStatus(401);
       return {

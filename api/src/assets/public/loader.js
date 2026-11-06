@@ -3,8 +3,7 @@ This is the Cria loader, built by IT Innovation at York University in 2024.
 
 If you're stalking this script, hello!
 */
-!function () {
-
+!(function () {
   let t = window,
     e = document,
     load = function () {
@@ -12,20 +11,23 @@ If you're stalking this script, hello!
 
       const botConfig = $objectReplace;
       window.CRIA[String(botConfig.botId)] = botConfig;
+      const encodedBotId = encodeURIComponent(String(botConfig.botId));
       let t = e.createElement("script");
 
       t.type = "text/javascript";
       t.async = true;
 
       if (botConfig.inlineLauncher) {
-        t.src = botConfig.chatApiUrl
-          + `/embed/${botConfig.botId}/inline.js`
-          + `?nocache=${Math.random()}`
+        t.src =
+          botConfig.chatApiUrl +
+          `/embed/${encodedBotId}/inline.js` +
+          `?nocache=${Math.random()}`;
       } else {
-        t.src = botConfig.chatApiUrl
-          + `/embed/${botConfig.botId}/popup.js`
-          + `?nocache=${Math.random()}`
-          + `&hideLauncher=${botConfig.hideLauncher}`;
+        t.src =
+          botConfig.chatApiUrl +
+          `/embed/${encodedBotId}/popup.js` +
+          `?nocache=${Math.random()}` +
+          `&hideLauncher=${botConfig.hideLauncher}`;
       }
 
       t.id = "cria-embed-loader";
@@ -39,5 +41,4 @@ If you're stalking this script, hello!
     if (t["attachEvent"]) t["attachEvent"]("onload", load);
     else t.addEventListener("load", load, undefined);
   }
-
-}();
+})();

@@ -42,9 +42,10 @@ export class EmbedInlineJSController extends BaseController {
     // Function replacements: a string replacement expands `$&`/`$\``/`$'`/`$n`,
     // and neither JSON.stringify nor the raw botId escapes `$` -- which would
     // splice template text into the served JavaScript. See EmbedPopupHTMLController.
-    const embedPopupScript = (EMBED_BASE_SCRIPT + " ")
-      .replaceAll(/\$botIdLiteral/g, () => botIdLiteral)
-      .replaceAll(/\$botId/g, () => botId);
+    const embedPopupScript = (EMBED_BASE_SCRIPT + " ").replaceAll(
+      /\$botIdLiteral/g,
+      () => botIdLiteral
+    );
 
     this.setStatus(200);
 

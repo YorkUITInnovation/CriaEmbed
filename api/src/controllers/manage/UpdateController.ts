@@ -17,6 +17,7 @@ import {
   CriaResponse
 } from "../../models/CriaResponse.js";
 import { getMySQLPool } from "../../database/mysql/pool.js";
+import { toManageBotConfigDto } from "../../models/botConfigDto.js";
 
 interface UpdateResponse extends CriaResponse {
   config?: IBotEmbed;
@@ -49,7 +50,7 @@ export class UpdateController extends BaseController {
       this.setStatus(200);
 
       return {
-        config: botConfig,
+        config: toManageBotConfigDto(botConfig),
         message: "Successfully updated config",
         status: 200,
         code: "SUCCESS",
@@ -92,9 +93,7 @@ export class UpdateController extends BaseController {
           return {
             timestamp: Date.now().toString(),
             status: 500,
-            message: `Internal error occurred! Class: '${
-              e.constructor.name
-            }', Message: '${e.message || "Unknown error"}'`,
+            message: "Internal error occurred while updating config.",
             code: "ERROR"
           };
       }

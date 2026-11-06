@@ -50,6 +50,7 @@ export class EmbedController extends BaseController {
   @Post("/embedding/upsert")
   @Tags("Embed")
   public async upsertEmbedding(
+    @Path() botId: string,
     @Header(API_KEY_HEADER_NAME) apiKey: string,
     @Body()
     body: {
@@ -58,12 +59,17 @@ export class EmbedController extends BaseController {
       metadata: Record<string, any>;
     }
   ): Promise<CriaResponse> {
-    if (!(await this.isAuthorized(apiKey))) {
+    if (!(await this.isAuthorizedForBot(botId, apiKey))) {
       this.setStatus(401);
       return { ...UNAUTHORIZED_RESPONSE, timestamp: Date.now().toString() };
     }
 
-    await this.service.upsertEmbedding(body.id, body.embedding, body.metadata);
+    await this.service.upsertEmbedding(
+      botId,
+      body.id,
+      body.embedding,
+      body.metadata
+    );
     this.setStatus(200);
     return {
       status: 200,
@@ -80,28 +86,33 @@ export class EmbedController extends BaseController {
   @Post("/embedding/search")
   @Tags("Embed")
   public async searchEmbeddings(
+    @Path() botId: string,
     @Header(API_KEY_HEADER_NAME) apiKey: string,
     @Body() body: { queryEmbedding: number[]; k?: number }
   ): Promise<{ results: any[] } | CriaResponse> {
-    if (!(await this.isAuthorized(apiKey))) {
+    if (!(await this.isAuthorizedForBot(botId, apiKey))) {
       this.setStatus(401);
       return { ...UNAUTHORIZED_RESPONSE, timestamp: Date.now().toString() };
     }
 
     const results = await this.service.searchEmbeddings(
+      botId,
       body.queryEmbedding,
-      body.k || 10
+      body.k ?? 10
     );
     this.setStatus(200);
     return { results };
   }
 
-  private async isAuthorized(apiKey: string): Promise<boolean> {
+  private async isAuthorizedForBot(
+    botId: string,
+    apiKey: string
+  ): Promise<boolean> {
     if (!apiKey) {
       return false;
     }
     try {
-      return await this.manageService.isApiKeyAuthorized(apiKey);
+      return await this.manageService.botExistsAndIsAuthorized(botId, apiKey);
     } catch (e: any) {
       // Fail closed either way, but distinguish a genuine rejection from an
       // upstream outage so the latter is observable, not silently a "bad key".
@@ -205,6 +216,7 @@ export class EmbedController extends BaseController {
   ): Promise<string | CriaResponse> {
     try {
       if (sessionData && !apiKey) {
+        this.setStatus(401);
         return {
           timestamp: Date.now().toString(),
           status: 401,
@@ -214,10 +226,11 @@ export class EmbedController extends BaseController {
       }
 
       if (inlineLauncher && hideLauncher) {
+        this.setStatus(400);
         return {
           timestamp: Date.now().toString(),
           status: 400,
-          code: "UNAUTHORIZED",
+          code: "INVALID",
           message:
             "You cannot hide the launcher in inline mode, as there is no launcher to hide."
         };
@@ -270,7 +283,6 @@ export class EmbedController extends BaseController {
       switch (e.constructor) {
         case EmbedNotFoundError:
           this.setStatus(404, e);
-
           return {
             timestamp: Date.now().toString(),
             status: 404,

@@ -11,3 +11,11 @@ export function htmlAttrEscape(value: string): string {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
+
+/** Escape plain text for HTML element content. */
+export function htmlTextEscape(value: string): string {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
